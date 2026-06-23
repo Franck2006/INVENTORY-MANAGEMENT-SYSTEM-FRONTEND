@@ -7,7 +7,7 @@ import { environment } from '../environment/env.environment';
 })
 export class SupabaseService {
   private readonly supabase_url = environment.SUPABASE_URL;
-  private readonly supabase_key = environment.SUPABASE_KEY;
+  private readonly supabase_key = environment.SUPABASE_ANON_KEY;
 
   public readonly supabaseClient: SupabaseClient;
 
