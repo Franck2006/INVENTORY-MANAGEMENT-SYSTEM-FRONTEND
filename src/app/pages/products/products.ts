@@ -245,27 +245,29 @@ interface CatalogProduct {
 export class Products implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
-  private readonly realtimeService = inject(RealtimeService);
+  public readonly realtimeService = inject(RealtimeService);
   private readonly supabase = inject(SupabaseService).supabaseClient;
 
-  protected products = this.realtimeService.products;
-
   constructor() {
-    // effect(() => {
-    //   console.log(this.products());
-    // });
+    effect(() => {
+      console.log(this.realtimeService.products());
+    });
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
 
   ngOnInit(): void {
     this.getProducts();
+    this.realtimeService.initRealtimeSync();
   }
 
   async getProducts() {
-    const { data, error } = await this.supabase.from('categories').select('*');
+    let products = await this.supabase.from('products').select('*');
 
-    console.log(`the data is ${JSON.stringify(data)}`);
-    console.log(`THE ERROR IS ${error?.message}`);
+    if (products.error) throw new Error(products.error.message);
+
+    console.log(products.data);
+
+    console.log(products.error);
   }
 
   // Core Tracking Data Hooks

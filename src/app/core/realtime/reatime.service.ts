@@ -1,4 +1,4 @@
-import { inject, Injectable, signal, WritableSignal } from '@angular/core';
+import { inject, Injectable, OnDestroy, OnInit, signal, WritableSignal } from '@angular/core';
 import { SupabaseService } from '../supabase/supabasa.client';
 import { GeneralModel } from '../../models/general-model.type';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -8,12 +8,12 @@ import { environment } from '../environment/env.environment';
 @Injectable({
   providedIn: 'root',
 })
-export class RealtimeService {
+export class RealtimeService implements OnDestroy {
   private readonly supabase = inject(SupabaseService).supabaseClient;
   private readonly http = inject(HttpClient);
   private realTime!: RealtimeChannel;
 
-  public readonly products = signal<GeneralModel.Product[]>([]);
+  public readonly products = signal<GeneralModel.Product[] | any[]>([]);
   public readonly product_variant = signal<GeneralModel.ProductVariant | null>(null);
   public readonly customer = signal<GeneralModel.Customer | null>(null);
   public readonly orders = signal<GeneralModel.Order | null>(null);
@@ -21,14 +21,13 @@ export class RealtimeService {
   public readonly stock_movement = signal<GeneralModel.StockMovement | null>(null);
 
   constructor() {
-    this.initRealtimeSync();
+    // this.initRealtimeSync();
   }
 
   public initRealtimeSync() {
-    console.log(this.supabase);
     this.realTime = this.supabase
       .channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'Products' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
         console.log('==========================');
         console.log('');
         console.log(payload);
@@ -37,9 +36,15 @@ export class RealtimeService {
 
         this.handleEvent(payload, this.products); // Pass corrected payload
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        console.log('STATUS:', status);
 
-    console.log(this.realTime);
+        if (err) {
+          console.error(err);
+        }
+      });
+
+    // console.log(this.realTime);
   }
 
   private handleEvent(payload: any, stateSignal: WritableSignal<GeneralModel.Product[]>) {
@@ -61,6 +66,11 @@ export class RealtimeService {
     }
   }
 
+  async ngOnDestroy() {
+    if (this.realTime) {
+      await this.supabase.removeChannel(this.realTime);
+    }
+  }
   // getAllProducts() {
   //   return this.http.get(`${environment.LOCAL_BACKEND_URL}/product/get-all-products`);
   // }
