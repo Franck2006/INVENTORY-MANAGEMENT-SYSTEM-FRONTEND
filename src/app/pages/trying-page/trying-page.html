@@ -1,0 +1,488 @@
+<app-dashboard>
+  <p>trying-page works!</p>
+  <!-- <app-dev-app-icon-btn> hi people </app-dev-app-icon-btn> -->
+  <app-app-dev-btn [loading]="true" [size]="'md'">hi peole</app-app-dev-btn>
+
+  <!-- Example 1: A close button in a modal -->
+  <app-dev-app-icon-btn [ariaLabel]="'Close modal'" variant="ghost">
+    <i class="ri-close-line"></i>
+  </app-dev-app-icon-btn>
+
+  <!-- Example 2: An edit button in a table row -->
+  <app-dev-app-icon-btn [ariaLabel]="'Edit profile data'" variant="secondary">
+    <i class="ri-edit-box-line"></i>
+  </app-dev-app-icon-btn>
+
+  <!-- Example 3: A delete button -->
+  <app-dev-app-icon-btn [ariaLabel]="'Delete account record'" variant="danger">
+    <i class="ri-delete-bin-line"></i>
+  </app-dev-app-icon-btn>
+
+  <!-- ==================================this is for trying inputs=========================== -->
+  <div
+    class="max-w-md mx-auto p-6 bg-[#1C2541] border border-[#3A506B]/30 rounded-2xl shadow-xl mt-10"
+  >
+    <form [formGroup]="myForm" (submit)="onSubmit(); $event.preventDefault()" class="space-y-4">
+      <app-dev-app-input
+        formControlName="username"
+        label="Username"
+        [errorText]="getErrorMessage('username')"
+      />
+
+      <app-dev-app-input
+        formControlName="email"
+        label="Email Address"
+        type="email"
+        [errorText]="getErrorMessage('email')"
+      />
+
+      <div class="pt-2">
+        <app-app-dev-btn type="submit" variant="primary" class="w-full">
+          Register Account
+        </app-app-dev-btn>
+      </div>
+    </form>
+  </div>
+
+  <!-- ==================================this is for trying the phone number input============================== -->
+  <div
+    class="max-w-md mx-auto p-6 bg-[#1C2541] border border-[#3A506B]/30 rounded-2xl shadow-xl mt-10"
+  >
+    <form
+      [formGroup]="profileForm"
+      (submit)="saveProfile(); $event.preventDefault()"
+      class="space-y-4"
+    >
+      <app-dev-app-phone-input
+        formControlName="phone"
+        label="Mobile Number"
+        [errorText]="getPhoneError()"
+      />
+
+      <app-app-dev-btn type="submit" variant="primary" class="w-full">
+        Save Changes
+      </app-app-dev-btn>
+    </form>
+  </div>
+
+  <div class="max-w-md mx-auto p-6 bg-[#0B132B] min-h-[350px]">
+    <form [formGroup]="accountForm" class="space-y-4">
+      <app-dev-app-phone-input formControlName="phoneNumber" label="Phone Number" />
+    </form>
+  </div>
+
+  <!-- ============================ this is for the textare========================== -->
+  <div
+    class="max-w-xl mx-auto p-6 bg-[#0B132B] border border-[#3A506B]/20 rounded-2xl shadow-xl mt-10"
+  >
+    <h3 class="text-lg font-bold text-slate-100 mb-4">Submit Details</h3>
+
+    <form
+      [formGroup]="feedbackForm"
+      (submit)="submitFeedback(); $event.preventDefault()"
+      class="space-y-4"
+    >
+      <app-dev-app-textarea
+        formControlName="description"
+        label="Project Details"
+        [rows]="5"
+        [errorText]="getDescriptionError()"
+      />
+
+      <app-app-dev-btn type="submit" variant="primary" class="w-full"> Send Form </app-app-dev-btn>
+    </form>
+  </div>
+
+  <!-- ============================ this is for the select btn ====================== -->
+  <div class="max-w-md mx-auto p-6 bg-[#0B132B] min-h-[350px] mt-10">
+    <form [formGroup]="projectForm" class="space-y-6">
+      <app-dev-app-select
+        formControlName="framework"
+        label="Choose Ecosystem"
+        [options]="techOptions"
+      />
+
+      <app-dev-app-select
+        formControlName="framework"
+        label="Search Ecosystem Stack"
+        [options]="techOptions"
+        [withSearch]="true"
+      />
+    </form>
+  </div>
+
+  <!-- =========================this is for the switch btn ======================== -->
+  <div
+    class="max-w-md mx-auto p-6 bg-[#0B132B] border border-[#3A506B]/20 rounded-2xl shadow-xl mt-12"
+  >
+    <h3 class="text-base font-bold text-slate-100 mb-6">System Toggles</h3>
+
+    <form
+      [formGroup]="configForm"
+      (submit)="printValues(); $event.preventDefault()"
+      class="space-y-6"
+    >
+      <div class="flex flex-col gap-5">
+        <app-dev-app-switch
+          formControlName="syncActive"
+          label="Automated continuous synchronization"
+        />
+
+        <app-dev-app-switch
+          formControlName="logsEnabled"
+          label="Enable diagnostics console logging output"
+        />
+      </div>
+
+      <div class="pt-4 border-t border-[#3A506B]/15">
+        <app-app-dev-btn type="submit" variant="primary" class="w-full">
+          Save Form State
+        </app-app-dev-btn>
+      </div>
+    </form>
+  </div>
+
+  <!--=======================================> this for the table -->
+  <div class="p-6 bg-[#0B132B] min-h-screen relative">
+    <h3 class="text-lg font-bold text-slate-100 mb-4">Core Inventory Control Ledger</h3>
+
+    <app-dev-app-table [headers]="columns" [data]="inventoryItems()">
+      <ng-template let-item>
+        <td class="px-6 py-4 font-semibold text-slate-100 whitespace-nowrap">
+          {{ item.name }}
+        </td>
+
+        <td class="px-6 py-4 text-mono text-xs text-slate-400 font-medium">
+          {{ item.sku }}
+        </td>
+
+        <td class="px-6 py-4 whitespace-nowrap">
+          <span
+            class="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20"
+          >
+            {{ item.status }}
+          </span>
+        </td>
+
+        <td class="px-6 py-4 whitespace-nowrap">
+          <app-dev-app-icon-btn
+            variant="ghost"
+            size="sm"
+            ariaLabel="Edit item parameters"
+            (click)="editItem(item)"
+          >
+            <span class="text-xs font-bold text-blue-500 hover:underline">Edit</span>
+          </app-dev-app-icon-btn>
+          <app-dev-app-icon-btn
+            variant="danger"
+            size="sm"
+            ariaLabel="Edit item parameters"
+            (click)="editItem(item)"
+          >
+            <span class="text-xs font-bold text-red-100 hover:underline">Edit</span>
+          </app-dev-app-icon-btn>
+        </td>
+        <td class="px-6 py-4 text-right whitespace-nowrap">
+          <app-dev-app-action-menu
+            [items]="rowActionsConfig()"
+            [rowContext]="item"
+            (actionTriggered)="handleRowAction($event)"
+          />
+        </td>
+      </ng-template>
+    </app-dev-app-table>
+  </div>
+
+  <!-- ======================this is for trying the paginator======================= -->
+  <div class="space-y-4 p-6 bg-[#0B132B]">
+    <app-dev-app-table [headers]="headers" [data]="paginatedData()" />
+
+    <app-dev-app-table-pagination
+      [totalItems]="rawUsers().length"
+      [pageSize]="itemsPerPage()"
+      [currentPage]="activePage()"
+      (pageChange)="activePage.set($event)"
+      (pageSizeChange)="itemsPerPage.set($event); activePage.set(1)"
+    />
+  </div>
+
+  <!-- =========================== this is for the quick stat row ========================-->
+  <div class="p-6 bg-[#0B132B] min-h-screen space-y-8">
+    <app-dev-app-quick-stat-row [statsData]="metricsSummary()" />
+
+    <app-dev-app-quick-stat-row [statsData]="metricsSummary()">
+      <ng-template let-metric>
+        <div class="w-full flex items-start justify-between">
+          <div class="space-y-1">
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              {{ metric.title }}
+            </p>
+            <h4 class="text-3xl font-extrabold text-slate-100 tracking-tight">
+              {{ metric.value }}
+            </h4>
+          </div>
+          <div
+            class="p-2.5 rounded-xl bg-[#222E50]/60 border border-[#3A506B]/20 text-slate-400 text-lg"
+          >
+            <i [class]="metric.icon"></i>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center gap-1.5 text-xs">
+          <span [class]="metric.isPositive ? 'text-emerald-400' : 'text-red-400'" class="font-bold">
+            {{ metric.isPositive ? '+' : '-' }}{{ metric.change }}
+          </span>
+          <span class="text-slate-500 font-medium">from last statement window</span>
+        </div>
+      </ng-template>
+    </app-dev-app-quick-stat-row>
+  </div>
+
+  <!-- ==========================================> this is for the dynamic card -->
+  <div class="p-6 bg-[#0B132B] min-h-screen space-y-8">
+    <app-dev-app-card>
+      <p class="text-sm text-slate-300">
+        Just raw internal structural data nested smoothly into our deep navy background grid canvas
+        layout.
+      </p>
+    </app-dev-app-card>
+
+    <app-dev-app-card
+      cardTitle="Product Inventory Overview"
+      cardSubtitle="Real-time metrics management ledger"
+      [hoverable]="true"
+    >
+      <button card-header-actions class="text-xs font-semibold text-blue-400 hover:underline">
+        <i class="fas fa-sync-alt mr-1"></i> Refresh
+      </button>
+
+      <div class="space-y-3">
+        <p class="text-sm text-slate-300">
+          Configure your main module definitions or form components safely between these borders.
+        </p>
+      </div>
+
+      <div card-footer>
+        <button class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200">
+          Cancel
+        </button>
+        <button
+          class="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors"
+        >
+          Confirm changes
+        </button>
+      </div>
+    </app-dev-app-card>
+  </div>
+
+  <!-- ========================> this is for the avatar url -->
+  <div class="p-6 bg-[#0B132B] flex items-center gap-6">
+    <app-dev-app-avatar name="Franck Amani" size="md" [showStatus]="true" status="online" />
+
+    <app-dev-app-avatar
+      imageUrl="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80"
+      name="Sarah Connor"
+      size="lg"
+      status="online"
+      [showStatus]="true"
+    />
+
+    <app-dev-app-avatar name="Admin Control" size="sm" status="offline" [showStatus]="true" />
+  </div>
+
+  <!-- ===========================================> this is for the badge  -->
+  <div class="p-6 bg-[#0B132B] flex flex-wrap items-center gap-4">
+    <app-dev-app-badge label="Active Module" variant="primary" icon="fas fa-project-diagram" />
+
+    <app-dev-app-badge label="In Stock" variant="success" icon="fas fa-check-circle" />
+
+    <app-dev-app-badge
+      label="Low Stock Alarms"
+      variant="warning"
+      icon="fas fa-exclamation-triangle"
+    />
+
+    <app-dev-app-badge label="Out of Stock" variant="danger" icon="fas fa-times-circle" />
+
+    <app-dev-app-badge label="Standard User" variant="slate" icon="fas fa-user" />
+  </div>
+
+  <!-- ========================= this is for the empty stat -->
+  <div class="p-6 bg-[#0B132B] min-h-screen space-y-6">
+    <div class="relative max-w-md">
+      <input
+        type="text"
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+        placeholder="Search products or SKUs..."
+        class="w-full px-4 py-2.5 bg-[#1C2541]/50 border border-[#3A506B]/30 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+      />
+    </div>
+
+    @if (filteredProducts().length > 0) {
+      <div class="grid gap-4">
+        @for (product of filteredProducts(); track product.id) {
+          <div
+            class="p-4 bg-[#1C2541]/40 border border-[#3A506B]/15 rounded-xl text-slate-200 text-sm"
+          >
+            {{ product.name }}
+            <span class="text-xs text-slate-500 font-mono">({{ product.sku }})</span>
+          </div>
+        }
+      </div>
+    } @else {
+      <app-dev-app-empty-state
+        title="No matching products found"
+        description="We couldn't find anything matching your search parameters. Try adjusting your filter tags or check your text spelling."
+        iconClass="fas fa-search"
+      >
+        <button
+          (click)="resetSearchFilters()"
+          class="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition-all shadow-lg cursor-pointer"
+        >
+          <i class="fas fa-undo mr-1.5"></i> Reset Active Filters
+        </button>
+      </app-dev-app-empty-state>
+    }
+  </div>
+
+  <!-- =========================== this is for the app-dev-app-skeleton -->
+  <div class="p-6 bg-[#0B132B] min-h-screen space-y-6">
+    <div class="space-y-4 p-4 bg-[#1C2541]/20 border border-[#3A506B]/15 rounded-xl">
+      <div class="flex items-center gap-4 py-2">
+        <app-dev-app-skeleton variant="line" class="w-1/4" />
+        <app-dev-app-skeleton variant="line" class="w-1/2" />
+        <app-dev-app-skeleton variant="line" class="w-1/4" />
+      </div>
+      <div class="flex items-center gap-4 py-2">
+        <app-dev-app-skeleton variant="line" class="w-1/3" />
+        <app-dev-app-skeleton variant="line" class="w-1/3" />
+        <app-dev-app-skeleton variant="line" class="w-1/3" />
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================>this is for the menu -->
+  <!-- <td class="px-6 py-4 text-right whitespace-nowrap">
+  <app-dev-app-action-menu
+    [items]="rowActionsConfig()"
+    [rowContext]="item"
+    (actionTriggered)="handleRowAction($event)"
+  />
+</td> -->
+
+  <!-- =============================================>this is for the dev  modal -->
+  <button
+    (click)="openCreationDialog()"
+    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl"
+  >
+    Add New Item
+  </button>
+
+  <app-dev-app-modal
+    [isOpen]="isItemModalOpen()"
+    title="Create New Inventory Entry Record"
+    size="md"
+    (close)="closeCreationDialog()"
+  >
+    <div class="space-y-4">
+      <p>
+        Populate your data forms or validation schemas directly inside this content grid window
+        framework area loop parameters.
+      </p>
+    </div>
+
+    <div modal-footer>
+      <button
+        (click)="closeCreationDialog()"
+        class="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200"
+      >
+        Cancel
+      </button>
+      <button
+        (click)="saveNewItem()"
+        class="px-4 py-2 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-xl"
+      >
+        Save Record
+      </button>
+    </div>
+  </app-dev-app-modal>
+
+  <!-- ===================================> this is for the dialogue -->
+  <button (click)="stageUserDeletion('#USR-102')" class="text-red-400 hover:text-red-300">
+    <i class="fas fa-trash-alt"></i>
+  </button>
+
+  <app-dev-app-confirm-dialog
+    [isOpen]="isDeleteConfirmOpen()"
+    title="Delete User Record Account"
+    message="Are you absolutely sure you want to delete this operational ledger record account profile? All cascading data points links will be lost permanently."
+    variant="danger"
+    confirmLabel="Delete permanently"
+    cancelLabel="Keep user"
+    (confirm)="onDeleteExecuted()"
+    (cancel)="onDeleteAborted()"
+  />
+
+  <!-- ==========================> this is for the toast model -->
+  <div class="p-6 bg-[#0B132B] min-h-screen">
+    <button
+      (click)="triggerNotification('success', 'Database Synced', 'Prisma records up to date.')"
+      class="px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl"
+    >
+      Simulate Success
+    </button>
+  </div>
+
+  <div
+    class="fixed bottom-5 right-5 z-[100] flex flex-col gap-3 w-full max-w-sm pointer-events-none"
+  >
+    @for (toast of activeToasts(); track toast.id) {
+      <app-dev-app-toast
+        [id]="toast.id"
+        [type]="toast.type"
+        [title]="toast.title || null"
+        [message]="toast.message"
+        (close)="removeToastId($event)"
+      />
+    }
+  </div>
+
+  <!-- ============================> this is for the tootip -->
+  <div class="p-12 bg-[#0B132B] min-h-screen flex items-center justify-center gap-8">
+    <app-dev-app-tooltip content="Sync remote structural records">
+      <button
+        class="w-9 h-9 flex items-center justify-center rounded-xl bg-[#1C2541]/60 border border-[#3A506B]/20 text-slate-300 hover:text-blue-400 hover:border-blue-500/30 transition-all cursor-pointer"
+      >
+        <i class="fas fa-sync-alt text-xs"></i>
+      </button>
+    </app-dev-app-tooltip>
+
+    <app-dev-app-tooltip content="Verified System Administrator Account" position="right">
+      <span class="cursor-help text-emerald-400">
+        <i class="fas fa-shield-alt text-sm"></i>
+      </span>
+    </app-dev-app-tooltip>
+
+    <app-dev-app-tooltip content="Permanent cascade data removal loop" position="bottom">
+      <button
+        class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-600/10 text-red-400 border border-red-500/20 hover:bg-red-600 hover:text-white transition-all cursor-pointer"
+      >
+        Purge Data
+      </button>
+    </app-dev-app-tooltip>
+  </div>
+
+  <app-dev-app-input label="hi" [placeholder]="'hi this is the place'"></app-dev-app-input>
+
+  <!-- this is for the select input -->
+  <div class="p-6 bg-[#0B132B] max-w-sm h-screen">
+    <app-dev-app-select-input
+      label="Assign Language Coach"
+      placeholder="Search active educators..."
+      prefixIcon="fas fa-user-chalkboard"
+      [options]="coachesList()"
+      (optionSelected)="onCoachSelected($event)"
+    />
+  </div>
+</app-dashboard>
