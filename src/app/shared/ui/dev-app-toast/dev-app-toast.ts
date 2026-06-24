@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import { Component, computed, input, OnInit, output } from '@angular/core';
 
 export type DevAppToastType = 'success' | 'error' | 'warning' | 'info';
@@ -5,13 +6,15 @@ export type DevAppToastType = 'success' | 'error' | 'warning' | 'info';
 export interface ToastModel {
   id: string;
   type: DevAppToastType;
-  title?: string;
+  title?: string; // Made optional
   message: string;
+  duration?: number; // Optional: time in ms before auto-dismiss
 }
 
 @Component({
-  selector: 'app-dev-app-toast',
-  imports: [],
+  selector: 'app-dev-app-toast', // Renamed selector to avoid conflict and clarify purpose
+  standalone: true,
+  imports: [CommonModule], // CommonModule is needed for @if
   template: `
     <div
       [class]="toastClasses()"
@@ -61,6 +64,7 @@ export interface ToastModel {
   ],
 })
 export class DevAppToast implements OnInit {
+  // Renamed class
   readonly id = input.required<string>();
   readonly type = input<DevAppToastType>('info');
   readonly title = input<string | null>(null);

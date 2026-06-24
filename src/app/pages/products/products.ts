@@ -26,11 +26,17 @@ import { Router } from '@angular/router';
 import { RealtimeService } from '../../core/realtime/reatime.service';
 import { GeneralModel } from '../../models/general-model.type';
 import { ProductService } from '../../services/product/product.service';
+import {
+  DevAppToastType,
+  ToastModel,
+  DevAppToast,
+} from '../../shared/ui/dev-app-toast/dev-app-toast'; // Import DevAppToast directly
+import { SupabaseService } from '../../core/supabase/supabasa.client';
 
 interface CatalogProduct {
   id: string; // Changed from number to string to match GeneralModel.ID
   name: string;
-  category: string;
+  category: string; // Display name of the category
   base_price: number;
   supplier: string;
   variantsCount: number;
@@ -56,6 +62,7 @@ interface CatalogProduct {
     DevAppActionMenu,
     DevAppTextarea, // Added DevAppTextarea to imports
     Dashboard,
+    DevAppToast, // Use DevAppToast directly as it's now the container (no change here, just confirming)
   ],
   template: `
     <app-dashboard>
@@ -104,7 +111,7 @@ interface CatalogProduct {
           <div class="w-full overflow-x-auto block">
             <app-dev-app-table
               [headers]="[
-                'ID',
+                'No.',
                 'Apparel Name / Design Line',
                 'Category',
 
@@ -116,8 +123,8 @@ interface CatalogProduct {
               [data]="paginatedProducts()"
             >
               <ng-template #rowTemplate let-product>
-                <td class="px-4 md:px-6 py-4 font-mono text-slate-500 font-medium">
-                  #{{ 'index' }}
+                <td class="px-4 md:px-6 py-4 font-mono text-slate-400 font-medium text-xs">
+                  #{{ product.index }}
                 </td>
 
                 <td class="px-4 md:px-6 py-4 min-w-[180px] whitespace-normal">
@@ -263,18 +270,17 @@ export class Products implements OnInit {
   private readonly formBuilder = inject(FormBuilder);
   private readonly router = inject(Router);
   private readonly productService = inject(ProductService);
+  private readonly supabase = inject(SupabaseService).supabaseClient;
 
   constructor() {
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
-  ngOnInit(): void {
-    // The RealtimeService constructor already calls initRealtimeSync() to fetch initial data and set up listeners.
-    // No explicit call is needed here unless you want to re-initialize it for some specific reason.
-  }
+  ngOnInit(): void {}
 
   // Core Tracking Data Hooks
   readonly isModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
+  readonly activeToasts = signal<ToastModel[]>([]);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
 
@@ -327,22 +333,23 @@ export class Products implements OnInit {
     const suppliers = this.suppliersFromRealtime();
     const options: DevAppSelectOption[] = [];
     // Assuming supplier objects have 'id' and 'companyName' properties
-    suppliers.forEach((s) =>
-      options.push({ value: s.id, label: s.companyName || 'Unknown Supplier' }),
-    );
+    suppliers.forEach((s) => options.push({ value: s.id, label: s.name || 'Unknown Supplier' }));
     return options;
   });
 
   readonly originalProducts = computed(() => {
     return this.productsFromRealtime().map((p) => {
+      // Safely access nested properties and provide fallbacks
+      // The index will be added dynamically during pagination for display purposes
       return {
         id: p.id!,
         name: p.name,
-        category: p.categories.name,
-        base_price: parseFloat(p.base_price as any) || 0,
-        supplier: String(p.supplier?.companyName || p.supplierId || ''),
-        totalStock: 0,
-        createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '',
+        category: p.categories?.name || 'Uncategorized', // Access nested category name safely
+        base_price: parseFloat(p.base_price?.toString() || '0'), // Use p.basePrice from data, parse to float
+        supplier: p.suppliers?.name || 'Unknown Supplier', // Access nested supplier name safely
+        variantsCount: 0, // Placeholder, assuming this would be calculated or fetched
+        totalStock: 0, // Placeholder, assuming this would be calculated or fetched
+        createdAt: p.created_at ? new Date(p.created_at).toLocaleDateString() : '',
       };
     });
   });
@@ -365,7 +372,7 @@ export class Products implements OnInit {
   }
 
   // Reactive Computing Filtering Loop
-  readonly filteredProducts = computed(() => {
+  private readonly filteredProducts = computed(() => {
     const filters = this.filterFormValue();
     const rawSearch = filters?.search;
     const query = (rawSearch || '').toLowerCase().trim(); // Search query
@@ -389,11 +396,16 @@ export class Products implements OnInit {
     });
   });
 
-  readonly totalItems = computed(() => this.filteredProducts().length);
+  readonly totalItems = computed(() => this.filteredProducts().length); // Total items after filtering
 
   readonly paginatedProducts = computed(() => {
     const start = (this.currentPage() - 1) * this.pageSize();
-    return this.filteredProducts().slice(start, start + this.pageSize());
+    return this.filteredProducts()
+      .slice(start, start + this.pageSize())
+      .map((product, index) => ({
+        ...product,
+        index: start + index + 1, // Add sequential number for current page
+      }));
   });
 
   onPageSizeChange(newSize: number): void {
@@ -413,33 +425,58 @@ export class Products implements OnInit {
 
   saveProductStyle(): void {
     if (this.productForm.invalid) return;
+    this.productForm.markAllAsTouched(); // Mark all fields as touched to show validation errors
+
+    this.isSaving.set(true); // Start loading state
 
     const { name, description, base_price, categoryId, supplierId } = this.productForm.value;
 
     this.productService
       .createProduct({
-        name,
-        description,
-        base_price,
-        categoryId,
-        supplierId,
+        name: name!,
+        description: description!,
+        base_price: base_price!,
+        categoryId: categoryId!,
+        supplierId: supplierId!,
       })
       .subscribe({
-        error: () => {
-          console.log('error');
-        },
         next: () => {
-          console.log('next');
+          this.triggerNotification(
+            'success',
+            'Product Created',
+            'New product style has been successfully added.',
+          );
+          this.productForm.reset(); // Reset form on success
+          this.closeModal(); // Close modal on success
+        },
+        error: (err) => {
+          console.error('Error creating product:', err);
+          this.triggerNotification(
+            'error',
+            'Creation Failed',
+            'Failed to create product style. Please try again.',
+          );
+        },
+        complete: () => {
+          this.isSaving.set(false); // End loading state regardless of success or error
         },
       });
+  }
 
-    console.log(this.productForm.value);
+  triggerNotification(type: DevAppToastType, title: string, message: string) {
+    const newToast: ToastModel = {
+      id: `toast-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      type,
+      title,
+      message,
+      duration: 4000, // Default duration for auto-dismiss
+    };
 
-    this.isSaving.set(true);
-    setTimeout(() => {
-      console.log('Committed to data stream repository:', this.productForm.value);
-      this.isSaving.set(false);
-      this.closeModal();
-    }, 1200);
+    // Push clean trace index to the signal chain array
+    this.activeToasts.update((current) => [...current, newToast]);
+  }
+
+  removeToastId(toastId: string) {
+    this.activeToasts.update((current) => current.filter((t) => t.id !== toastId));
   }
 }

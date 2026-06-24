@@ -1,101 +1,67 @@
+// src/app/models/general-model.type.ts
+
 export namespace GeneralModel {
-  interface ID {
-    id?: string;
-  }
-
-  interface CreatedAt {
-    createdAt?: Date;
-  }
-
-  interface UpdatedAt {
-    updatedAt?: Date;
-  }
-
-  interface Creadentials {
+  interface Creadential {
     email: string;
     password: string;
   }
 
-  export interface SignUpCreadentials extends Creadentials {
+  export interface SignInCreadentials extends Creadential {}
+
+  export interface SignUpCreadentials extends Creadential {
     name: string;
     lastname: string;
   }
 
-  export interface SignInCreadentials extends Creadentials {}
-
-  export interface Product extends ID, CreatedAt {
-    name: string;
-    description: string;
-    basePrice: number;
-    categoryId: string;
-    supplierId: string;
-  }
-
-  export interface ProductVariant extends ID, CreatedAt {
-    sku: string;
-    size: string;
-    color: string;
-    price: string;
-    lowStockThreshold: number;
-    productId: string;
-  }
-
-  export interface Customer extends ID, CreatedAt {
-    name: string;
-    phone: string;
-    email: string;
-    loyaltyPoints: number;
-  }
-
-  export interface Order {
-    userId: string;
-    customerId: string;
-    locationId: string;
-    discountId: string;
-    paymentMethod: string;
-    totalAmount: number;
-    location: string[];
-    customer: Customer;
-    discount: string[];
-  }
-
-  export interface OrderItem {
-    quantity: number;
-    unitPrice: number;
-    orderId: string;
-    productVariantId: string;
-    order: Order;
-    productVariant: ProductVariant;
-  }
-
-  export interface StockMovement {
-    quantity: number;
-    type: MovementType;
-    reason: string;
-    productVariantId: string;
-    locationId: string;
-    userId: string;
-    location: string[];
-    productVariant: ProductVariant[];
-    user: any;
-  }
-
   export interface Category {
+    id: string;
     name: string;
     slug: string;
+    created_at?: string;
+    // Add other category properties if they exist
   }
 
-  enum MovementType {
-    SALE = 'SALE',
-    RESTOCK = 'RESTOCK',
-    RETURN = 'RETURN',
-    DAMAGED = 'DAMAGED',
+  export interface Supplier {
+    id: string;
+    name: string;
+    created_at?: string;
+    // Add other supplier properties if they exist
+  }
+
+  export interface Product {
+    id: string;
+    name: string;
+    description: string;
+    base_price: number;
+    category_id: string;
+    supplier_id: string;
+    created_at: string;
+    categories: Category | null; // Nested category, can be null if no match
+    suppliers: Supplier | null; // Nested supplier, can be null if no match
+    // Add other product properties if they exist
+  }
+
+  // Placeholder for other models if they exist, otherwise remove or define them
+  export interface ProductVariant {
+    /* Define properties */
+  }
+  export interface Customer {
+    /* Define properties */
+  }
+  export interface Order {
+    /* Define properties */
+  }
+  export interface OrderItem {
+    /* Define properties */
+  }
+  export interface StockMovement {
+    /* Define properties */
   }
 }
 
 export namespace HardCodedDataInterface {
   export interface TokenModels {
-    access_token: string | null;
-    refresh_token: string | null;
+    access_token: string;
+    refresh_token: string;
   }
 }

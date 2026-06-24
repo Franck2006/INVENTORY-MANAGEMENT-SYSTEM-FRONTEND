@@ -338,6 +338,7 @@ export class TryingPage {
       type,
       title,
       message,
+      duration: 4000, // Default duration for auto-dismiss
     };
 
     // Push clean trace index to the signal chain array
