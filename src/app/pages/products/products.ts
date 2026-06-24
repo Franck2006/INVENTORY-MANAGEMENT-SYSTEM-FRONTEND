@@ -24,7 +24,6 @@ import {
 } from '../../shared/ui/dev-app-action-menu/dev-app-action-menu';
 import { Router } from '@angular/router';
 import { RealtimeService } from '../../core/realtime/reatime.service';
-import { SupabaseService } from '../../core/supabase/supabase.client';
 import { GeneralModel } from '../../models/general-model.type';
 import { ProductService } from '../../services/product/product.service';
 
@@ -117,8 +116,8 @@ interface CatalogProduct {
               [data]="paginatedProducts()"
             >
               <ng-template #rowTemplate let-product>
-                <td class="px-4 md:px-6 py-4 font-mono text-slate-500 font-medium">
-                  #{{ 'index' }}
+                <td class="px-4 md:px-6 py-4 font-mono text-slate-500 font-medium text-xs">
+                  #{{ product.id.substring(0, 8) }}...
                 </td>
 
                 <td class="px-4 md:px-6 py-4 min-w-[180px] whitespace-normal">
@@ -263,53 +262,19 @@ export class Products implements OnInit {
   public readonly realtimeService = inject(RealtimeService);
   private readonly formBuilder = inject(FormBuilder);
   private readonly router = inject(Router);
-  private readonly supabase = inject(SupabaseService).supabaseClient;
   private readonly productService = inject(ProductService);
 
   // Convert BehaviorSubjects to signals for reactive usage in templates/computed properties
   readonly productsFromRealtime = this.realtimeService.products;
   readonly categoriesFromRealtime = this.realtimeService.category;
-  readonly suppliersFromRealtime = signal<any[]>([]); // Placeholder for suppliers
+  readonly suppliersFromRealtime = this.realtimeService.suppliers;
 
   constructor() {
-    // The effect is no longer necessary as BehaviorSubjects are not signals directly.
-    // If reactive behavior is needed, use toSignal and then react to the derived signal.
-    // For now, removing this as its purpose is unclear without further context.
-    // effect(() => { this.productsFromRealtime(); this.categoriesFromRealtime(); });
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
+
   ngOnInit(): void {
-    this.getInitialData();
-    // this.realtimeService.initRealtimeSync();
-  }
-
-  async getInitialData() {
-    let products = await this.supabase.from('products').select('*');
-    let categories = await this.supabase.from('categories').select('*');
-    let suppliers = await this.supabase.from('suppliers').select('*'); // Assuming a 'suppliers' table
-
-    this.realtimeService.products.set(products.data || []);
-    this.realtimeService.category.set(categories.data || []);
-    this.suppliersFromRealtime.set(suppliers.data || []); // Populate the new signal
-
-    if (products.error) throw new Error(products.error.message);
-    if (categories.error) throw new Error(categories.error.message);
-    if (suppliers.error) throw new Error(suppliers.error.message);
-
-    console.log('-===============products.data=================');
-    console.log(' ');
-    console.log(products.data);
-    console.log(' ');
-    console.log('-==============products.data==================');
-    console.log('-===============categories.data=================');
-    console.log(' ');
-    console.log(categories.data);
-    console.log(' ');
-    console.log('-==============categories.data==================');
-    console.log('-===============suppliers.data================='); // New log
-    console.log(' ');
-    console.log(suppliers.data);
-    console.log('-==============categories.data==================');
+    // RealtimeService is initialized in its constructor, no explicit call needed here.
   }
 
   // Core Tracking Data Hooks
