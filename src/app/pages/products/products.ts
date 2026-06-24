@@ -116,8 +116,8 @@ interface CatalogProduct {
               [data]="paginatedProducts()"
             >
               <ng-template #rowTemplate let-product>
-                <td class="px-4 md:px-6 py-4 font-mono text-slate-500 font-medium text-xs">
-                  #{{ product.id.substring(0, 8) }}...
+                <td class="px-4 md:px-6 py-4 font-mono text-slate-500 font-medium">
+                  #{{ 'index' }}
                 </td>
 
                 <td class="px-4 md:px-6 py-4 min-w-[180px] whitespace-normal">
@@ -264,17 +264,12 @@ export class Products implements OnInit {
   private readonly router = inject(Router);
   private readonly productService = inject(ProductService);
 
-  // Convert BehaviorSubjects to signals for reactive usage in templates/computed properties
-  readonly productsFromRealtime = this.realtimeService.products;
-  readonly categoriesFromRealtime = this.realtimeService.category;
-  readonly suppliersFromRealtime = this.realtimeService.suppliers;
-
   constructor() {
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
-
   ngOnInit(): void {
-    // RealtimeService is initialized in its constructor, no explicit call needed here.
+    // The RealtimeService constructor already calls initRealtimeSync() to fetch initial data and set up listeners.
+    // No explicit call is needed here unless you want to re-initialize it for some specific reason.
   }
 
   // Core Tracking Data Hooks
@@ -282,6 +277,11 @@ export class Products implements OnInit {
   readonly isSaving = signal<boolean>(false);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
+
+  // Signals for reactive usage in templates/computed properties, directly from RealtimeService
+  readonly productsFromRealtime = this.realtimeService.products;
+  readonly categoriesFromRealtime = this.realtimeService.category;
+  readonly suppliersFromRealtime = this.realtimeService.suppliers;
 
   // Form groups initialized via FormBuilder
   readonly filterForm = this.formBuilder.group({
@@ -334,19 +334,15 @@ export class Products implements OnInit {
   });
 
   readonly originalProducts = computed(() => {
-    // Map GeneralModel.Product to CatalogProduct, assuming field compatibility
     return this.productsFromRealtime().map((p) => {
-      // Find the category name by matching p.categoryId with the 'id' property of categories
-      const categoryName =
-        this.categoriesFromRealtime().find((cat) => cat.id === p.categoryId)?.name || 'Unknown';
       return {
-        id: p.id!, // Ensure id is present and cast to string
+        id: p.id!,
         name: p.name,
-        category: categoryName,
+        category: p.categories.name,
         base_price: parseFloat(p.base_price as any) || 0,
-        supplier: String(p.supplier?.companyName || p.supplierId || ''), // Use companyName from the supplier object, fallback to supplierId, then empty string
-        totalStock: 0, // Placeholder, as stock data is not fetched
-        createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '', // Format date to string
+        supplier: String(p.supplier?.companyName || p.supplierId || ''),
+        totalStock: 0,
+        createdAt: p.createdAt ? new Date(p.createdAt).toLocaleDateString() : '',
       };
     });
   });
