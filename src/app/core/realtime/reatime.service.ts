@@ -14,6 +14,7 @@ export class RealtimeService implements OnDestroy {
   private realTime!: RealtimeChannel;
 
   public readonly products = signal<GeneralModel.Product[] | any[]>([]);
+  public readonly category = signal<GeneralModel.Category[] | any[]>([]);
   public readonly product_variant = signal<GeneralModel.ProductVariant | null>(null);
   public readonly customer = signal<GeneralModel.Customer | null>(null);
   public readonly orders = signal<GeneralModel.Order | null>(null);

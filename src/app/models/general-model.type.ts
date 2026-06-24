@@ -80,6 +80,11 @@ export namespace GeneralModel {
     user: any;
   }
 
+  export interface Category {
+    name: string;
+    slug: string;
+  }
+
   enum MovementType {
     SALE = 'SALE',
     RESTOCK = 'RESTOCK',
