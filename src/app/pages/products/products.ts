@@ -333,7 +333,9 @@ export class Products implements OnInit {
     const suppliers = this.suppliersFromRealtime();
     const options: DevAppSelectOption[] = [];
     // Assuming supplier objects have 'id' and 'companyName' properties
-    suppliers.forEach((s) => options.push({ value: s.id, label: s.name || 'Unknown Supplier' }));
+    suppliers.forEach((s) =>
+      options.push({ value: s.id, label: s.company_name || 'Unknown Supplier' }),
+    );
     return options;
   });
 
@@ -341,12 +343,13 @@ export class Products implements OnInit {
     return this.productsFromRealtime().map((p) => {
       // Safely access nested properties and provide fallbacks
       // The index will be added dynamically during pagination for display purposes
+      console.log(p.suppliers);
       return {
         id: p.id!,
         name: p.name,
         category: p.categories?.name || 'Uncategorized', // Access nested category name safely
         base_price: parseFloat(p.base_price?.toString() || '0'), // Use p.basePrice from data, parse to float
-        supplier: p.suppliers?.name || 'Unknown Supplier', // Access nested supplier name safely
+        supplier: p.suppliers?.company_name || 'Unknown Supplier', // Access nested supplier name safely
         variantsCount: 0, // Placeholder, assuming this would be calculated or fetched
         totalStock: 0, // Placeholder, assuming this would be calculated or fetched
         createdAt: p.created_at ? new Date(p.created_at).toLocaleDateString() : '',
@@ -435,7 +438,7 @@ export class Products implements OnInit {
       .createProduct({
         name: name!,
         description: description!,
-        base_price: base_price!,
+        basePrice: base_price!,
         categoryId: categoryId!,
         supplierId: supplierId!,
       })
@@ -447,7 +450,8 @@ export class Products implements OnInit {
             'New product style has been successfully added.',
           );
           this.productForm.reset(); // Reset form on success
-          this.closeModal(); // Close modal on success
+          this.closeModal();
+          this.isSaving.set(false); // Close modal on success
         },
         error: (err) => {
           console.error('Error creating product:', err);
@@ -456,6 +460,7 @@ export class Products implements OnInit {
             'Creation Failed',
             'Failed to create product style. Please try again.',
           );
+          this.isSaving.set(false);
         },
         complete: () => {
           this.isSaving.set(false); // End loading state regardless of success or error

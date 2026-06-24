@@ -42,7 +42,7 @@ export class RealtimeService implements OnDestroy {
     // Fetch products with nested category and supplier
     const { data: productsData, error: productsError } = await this.supabase
       .from('products')
-      .select('*, categories(*), suppliers(*)')
+      .select('*, suppliers(*), categories(*) ')
       .order('created_at', { ascending: false }); // Corrected column name to 'created_at'
 
     if (productsError) {

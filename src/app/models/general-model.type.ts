@@ -1,6 +1,8 @@
-// src/app/models/general-model.type.ts
-
 export namespace GeneralModel {
+  interface ID {
+    id: string;
+  }
+
   interface Creadential {
     email: string;
     password: string;
@@ -21,15 +23,16 @@ export namespace GeneralModel {
     // Add other category properties if they exist
   }
 
-  export interface Supplier {
-    id: string;
-    name: string;
-    created_at?: string;
+  export interface Supplier extends ID {
+    company_name: string;
+    contactName: string;
+    phone: string;
+    email: string;
+
     // Add other supplier properties if they exist
   }
 
-  export interface Product {
-    id: string;
+  export interface Product extends ID {
     name: string;
     description: string;
     base_price: number;
