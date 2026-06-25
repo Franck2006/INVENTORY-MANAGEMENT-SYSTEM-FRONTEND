@@ -45,13 +45,26 @@ export namespace GeneralModel {
   }
 
   // Placeholder for other models if they exist, otherwise remove or define them
-  export interface ProductVariant {
-    sku: string;
-    size: string;
-    color: string;
-    price: string;
+  // export interface  {
+  //   sku: string;
+  //   size: string;
+  //   color: string;
+  //   price: string;
+  //   product_id: string
+  // }
+
+  export interface ProductVariant extends ID {
+    sku: string
+    size: string
+    color: string
+    price: string
+    low_stock_threshold: number
+    id: string
     product_id: string
+    product: Product
+
   }
+
   export interface Customer {
     /* Define properties */
   }

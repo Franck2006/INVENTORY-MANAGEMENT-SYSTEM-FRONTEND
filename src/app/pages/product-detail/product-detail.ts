@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   DevAppActionMenu,
@@ -62,7 +62,7 @@ interface DetailedProduct {
               <span class="text-slate-300 font-mono">#{{ productId() }}</span>
             </div>
             <h1 class="text-xl font-bold tracking-tight text-white">
-              {{ product()?.name || 'Loading Style...' }}
+              {{ choosenProduct()?.name || 'Loading Style...' }}
             </h1>
           </div>
 
@@ -76,7 +76,7 @@ interface DetailedProduct {
           </app-app-dev-btn>
         </div>
 
-        @if (product()) {
+        @if (choosenProduct()) {
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             <div class="w-full">
               <app-dev-app-card
@@ -91,7 +91,7 @@ interface DetailedProduct {
                     >
                     <div class="mt-1">
                       <app-dev-app-badge
-                        [label]="product()!.category"
+                        [label]="choosenProduct()!.categories!.name"
                         variant="slate"
                       ></app-dev-app-badge>
                     </div>
@@ -102,7 +102,7 @@ interface DetailedProduct {
                       class="text-[10px] uppercase font-bold tracking-wider text-slate-500 block"
                       >Vendor Supplier Link</span
                     >
-                    <p class="text-slate-200 font-medium mt-0.5">{{ product()!.supplier }}</p>
+                    <p class="text-slate-200 font-medium mt-0.5">{{ choosenProduct()!.suppliers!.contactName }}</p>
                   </div>
 
                   <div class="pb-3 border-b border-[#3A506B]/15">
@@ -111,7 +111,7 @@ interface DetailedProduct {
                       >Baseline Base Price</span
                     >
                     <p class="text-lg font-mono font-black text-emerald-400 mt-0.5">
-                      \${{ product()!.basePrice.toFixed(2) }}
+                      \$   {{ choosenProduct()?.base_price }}
                     </p>
                   </div>
 
@@ -121,10 +121,11 @@ interface DetailedProduct {
                       >System Architecture Footprint</span
                     >
                     <p class="text-xs text-slate-400 leading-relaxed mt-1">
-                      {{ product()!.description }}
+                      {{ choosenProduct()?.description }}
+                     
                     </p>
                     <span class="block font-mono text-[10px] text-slate-500 mt-3"
-                      >Ingested into node matrix: {{ product()!.createdAt }}</span
+                      >Ingested into node matrix: {{ choosenProduct()?.created_at }}</span
                     >
                   </div>
                 </div>
@@ -149,11 +150,13 @@ interface DetailedProduct {
                       'Size Dimension',
                       'Color Tone',
                       'Physical Stock',
-                      'Calculated Final Price',
                       'Actions',
                     ]"
-                    [data]="product()!.variants"
+                    [data]="productDetail()"
                   >
+
+                      <!-- 'Calculated Final Price', -->
+
                     <ng-template #rowTemplate let-variant>
                       <td class="px-4 md:px-6 py-4 font-mono font-medium text-slate-400 text-xs">
                         {{ variant.sku }}
@@ -177,14 +180,15 @@ interface DetailedProduct {
                           [class.text-slate-200]="variant.stock > 0"
                           class="font-bold font-mono text-xs"
                         >
-                          {{ variant.stock }} units
+                          {{ variant.low_stock_threshold}} units
                         </span>
                       </td>
-                      <td
+                      <!-- <td
                         class="px-4 md:px-6 py-4 font-mono font-extrabold text-slate-200 text-right"
                       >
+                      {{""}}
                         \${{ (product()!.basePrice + variant.additionalPrice).toFixed(2) }}
-                      </td>
+                      </td> -->
                       <td class="px-4 md:px-6 py-4 text-center">
                         <app-dev-app-action-menu
                           [items]="variantMenuActions"
@@ -212,26 +216,26 @@ export class ProductDetail implements OnInit, OnDestroy {
   private routeSub?: Subscription;
   private readonly realtimeService = inject(RealtimeService)
 
-  private readonly product_variants = this.realtimeService.product_variant
+  private readonly realtimeProductVariants = this.realtimeService.product_variant
+  private readonly realtimeProduct = this.realtimeService.products
 
   readonly productId = signal<string | null>(null);
-  readonly product = signal<DetailedProduct | null>(null);
+  // readonly product = signal<DetailedProduct | null>(null);
 
   readonly variantMenuActions: DevAppMenuItem[] = [
     { id: 'adjust_stock', label: 'Modify Stock Count', icon: 'fas fa-boxes' },
     { id: 'delete_sku', label: 'Purge SKU Entry', icon: 'fas fa-trash-alt', variant: 'danger' },
   ];
 
+
+  constructor() {
+    effect(() => {
+      console.log("THIS IS THE ARRAY", this.productDetail())
+    })
+  }
+
   ngOnInit(): void {
     this.getSubRouteOnAppInit()
-
-    // console.log("NEW DATA   ==>", this.product_variants())
-    // console.log("NEW DATA  GRIG ==>", this.realtimeService.product_variant())
-    console.log("THIS IS THE ARRAY")
-    console.log(" ")
-    console.log(this.productDetail())
-    console.log(' ')
-    console.log("THIS IS THE ARRAY")
   }
 
   getSubRouteOnAppInit() {
@@ -240,15 +244,22 @@ export class ProductDetail implements OnInit, OnDestroy {
       if (idParam) {
         const id = parseInt(idParam, 10);
         this.productId.set(idParam);
-        this.loadProductMockData(id);
       }
     });
   }
 
   productDetail = computed(() => {
     console.log(this.productId())
-    return this.product_variants().filter((p) => {
+    return this.realtimeProductVariants().filter((p) => {
+      const { color, id, low_stock_threshold, price, product, product_id, size } = p
+
       return p.product_id === this.productId()
+    })
+  })
+
+  choosenProduct = computed(() => {
+    return this.realtimeProduct().find((p) => {
+      return p.id === this.productId()
     })
   })
 
@@ -262,34 +273,34 @@ export class ProductDetail implements OnInit, OnDestroy {
     );
   }
 
-  private loadProductMockData(id: number): void {
-    setTimeout(() => {
-      this.product.set({
-        id,
-        name: id === 102 ? 'Slim Chino Trousers' : 'Classic Linen Shirt',
-        category: id === 102 ? 'Trousers' : 'Shirts',
-        basePrice: id === 102 ? 65.0 : 45.0,
-        supplier: id === 102 ? 'AfroFashion Manufacturing' : 'Textile Horizon SARL',
-        description:
-          'Premium lightweight structural apparel choice utilizing refined textile mesh optimizations.',
-        createdAt: '2026-05-12',
-        variants: [
-          {
-            sku: `SKU-${id}-S-BLK`,
-            size: 'S',
-            color: 'Midnight Jet Black',
-            stock: 12,
-            additionalPrice: 0.0,
-          },
-          {
-            sku: `SKU-${id}-M-BLK`,
-            size: 'M',
-            color: 'Midnight Jet Black',
-            stock: 8,
-            additionalPrice: 0.0,
-          },
-        ],
-      });
-    }, 250);
-  }
+  // private loadProductMockData(id: number): void {
+  //   setTimeout(() => {
+  //     this.product.set({
+  //       id,
+  //       name: id === 102 ? 'Slim Chino Trousers' : 'Classic Linen Shirt',
+  //       category: id === 102 ? 'Trousers' : 'Shirts',
+  //       basePrice: id === 102 ? 65.0 : 45.0,
+  //       supplier: id === 102 ? 'AfroFashion Manufacturing' : 'Textile Horizon SARL',
+  //       description:
+  //         'Premium lightweight structural apparel choice utilizing refined textile mesh optimizations.',
+  //       createdAt: '2026-05-12',
+  //       variants: [
+  //         {
+  //           sku: `SKU-${id}-S-BLK`,
+  //           size: 'S',
+  //           color: 'Midnight Jet Black',
+  //           stock: 12,
+  //           additionalPrice: 0.0,
+  //         },
+  //         {
+  //           sku: `SKU-${id}-M-BLK`,
+  //           size: 'M',
+  //           color: 'Midnight Jet Black',
+  //           stock: 8,
+  //           additionalPrice: 0.0,
+  //         },
+  //       ],
+  //     });
+  //   }, 250);
+  // }
 }

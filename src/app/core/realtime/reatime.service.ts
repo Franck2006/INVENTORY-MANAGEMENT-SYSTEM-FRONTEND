@@ -56,7 +56,6 @@ export class RealtimeService implements OnDestroy {
     const { data: productVariantsData, error: productVariantsError } = await this.supabase
       .from('product_variants')
       .select('* , products(categories(*))');
-    // .order('created_at', { ascending: false }); // Corrected column name to 'created_at'
 
     if (productVariantsError) {
       console.error('Error fetching initial products:', productVariantsError);
