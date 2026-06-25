@@ -16,7 +16,8 @@ export class RealtimeService implements OnDestroy {
   public readonly products = signal<GeneralModel.Product[]>([]);
   public readonly suppliers = signal<GeneralModel.Supplier[]>([]);
   public readonly category = signal<GeneralModel.Category[]>([]);
-  public readonly product_variant = signal<GeneralModel.ProductVariant | null>(null);
+  public readonly product_variant = signal<GeneralModel.ProductVariant[]>([]);
+  public readonly cart = signal<GeneralModel.Product | null>(null);
   public readonly customer = signal<GeneralModel.Customer | null>(null);
   public readonly orders = signal<GeneralModel.Order | null>(null);
   public readonly order_items = signal<GeneralModel.OrderItem | null>(null);
@@ -51,6 +52,18 @@ export class RealtimeService implements OnDestroy {
       this.products.set((productsData as GeneralModel.Product[]) || []);
     }
 
+    // Fetch products with nested category and supplier
+    const { data: productVariantsData, error: productVariantsError } = await this.supabase
+      .from('product_variants')
+      .select('* ');
+    // .order('created_at', { ascending: false }); // Corrected column name to 'created_at'
+
+    if (productVariantsError) {
+      console.error('Error fetching initial products:', productVariantsError);
+    } else {
+      this.product_variant.set((productVariantsData as GeneralModel.ProductVariant[]) || []);
+    }
+
     // Fetch categories
     const { data: categoriesData, error: categoriesError } = (await this.supabase
       .from('categories') // Corrected table name to 'categories'
@@ -75,6 +88,7 @@ export class RealtimeService implements OnDestroy {
 
     console.log('Initial data fetched from Supabase.');
     console.log('Initial products:', this.products());
+    console.log('Initial product_variant:', this.product_variant());
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
   }

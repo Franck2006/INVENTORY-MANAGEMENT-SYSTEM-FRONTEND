@@ -26,11 +26,7 @@ import { Router } from '@angular/router';
 import { RealtimeService } from '../../core/realtime/reatime.service';
 import { GeneralModel } from '../../models/general-model.type';
 import { ProductService } from '../../services/product/product.service';
-import {
-  DevAppToastType,
-  ToastModel,
-  DevAppToast,
-} from '../../shared/ui/dev-app-toast/dev-app-toast'; // Import DevAppToast directly
+import { DevAppToastType, ToastModel } from '../../shared/ui/dev-app-toast/dev-app-toast'; // Import DevAppToast directly
 import { SupabaseService } from '../../core/supabase/supabasa.client';
 
 interface CatalogProduct {
@@ -62,7 +58,6 @@ interface CatalogProduct {
     DevAppActionMenu,
     DevAppTextarea, // Added DevAppTextarea to imports
     Dashboard,
-    DevAppToast, // Use DevAppToast directly as it's now the container (no change here, just confirming)
   ],
   template: `
     <app-dashboard>
