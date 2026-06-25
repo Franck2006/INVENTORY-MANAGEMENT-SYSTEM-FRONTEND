@@ -55,7 +55,7 @@ export class RealtimeService implements OnDestroy {
     // Fetch products with nested category and supplier
     const { data: productVariantsData, error: productVariantsError } = await this.supabase
       .from('product_variants')
-      .select('* ');
+      .select('* , products(categories(*))');
     // .order('created_at', { ascending: false }); // Corrected column name to 'created_at'
 
     if (productVariantsError) {
@@ -99,7 +99,7 @@ export class RealtimeService implements OnDestroy {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
-        async (payload: RealtimePostgresChangesPayload<GeneralModel.Product>) => {},
+        async (payload: RealtimePostgresChangesPayload<GeneralModel.Product>) => { },
       )
       .subscribe((status, err) => {
         console.log('Product Realtime Status:', status);

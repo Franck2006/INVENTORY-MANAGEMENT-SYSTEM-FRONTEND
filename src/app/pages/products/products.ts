@@ -267,10 +267,16 @@ export class Products implements OnInit {
   private readonly productService = inject(ProductService);
   private readonly supabase = inject(SupabaseService).supabaseClient;
 
+
+  // Signals for reactive usage in templates/computed properties, directly from RealtimeService
+  readonly productsFromRealtime = this.realtimeService.products;
+  readonly categoriesFromRealtime = this.realtimeService.category;
+  readonly suppliersFromRealtime = this.realtimeService.suppliers;
+
   constructor() {
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
-  ngOnInit(): void {}
+  ngOnInit(): void { }
 
   // Core Tracking Data Hooks
   readonly isModalOpen = signal<boolean>(false);
@@ -279,10 +285,7 @@ export class Products implements OnInit {
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
 
-  // Signals for reactive usage in templates/computed properties, directly from RealtimeService
-  readonly productsFromRealtime = this.realtimeService.products;
-  readonly categoriesFromRealtime = this.realtimeService.category;
-  readonly suppliersFromRealtime = this.realtimeService.suppliers;
+
 
   // Form groups initialized via FormBuilder
   readonly filterForm = this.formBuilder.group({
@@ -338,7 +341,6 @@ export class Products implements OnInit {
     return this.productsFromRealtime().map((p) => {
       // Safely access nested properties and provide fallbacks
       // The index will be added dynamically during pagination for display purposes
-      console.log(p.suppliers);
       return {
         id: p.id!,
         name: p.name,

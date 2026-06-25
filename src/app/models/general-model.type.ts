@@ -8,7 +8,7 @@ export namespace GeneralModel {
     password: string;
   }
 
-  export interface SignInCreadentials extends Creadential {}
+  export interface SignInCreadentials extends Creadential { }
 
   export interface SignUpCreadentials extends Creadential {
     name: string;
@@ -50,6 +50,7 @@ export namespace GeneralModel {
     size: string;
     color: string;
     price: string;
+    product_id: string
   }
   export interface Customer {
     /* Define properties */

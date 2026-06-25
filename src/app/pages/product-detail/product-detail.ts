@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   DevAppActionMenu,
@@ -11,6 +11,7 @@ import { DevAppTable } from '../../shared/ui/dev-app-table/dev-app-table';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { Subscription } from 'rxjs';
 import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
+import { RealtimeService } from '../../core/realtime/reatime.service';
 
 interface ProductVariant {
   sku: string;
@@ -209,8 +210,11 @@ interface DetailedProduct {
 export class ProductDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private routeSub?: Subscription;
+  private readonly realtimeService = inject(RealtimeService)
 
-  readonly productId = signal<number | null>(null);
+  private readonly product_variants = this.realtimeService.product_variant
+
+  readonly productId = signal<string | null>(null);
   readonly product = signal<DetailedProduct | null>(null);
 
   readonly variantMenuActions: DevAppMenuItem[] = [
@@ -219,15 +223,34 @@ export class ProductDetail implements OnInit, OnDestroy {
   ];
 
   ngOnInit(): void {
+    this.getSubRouteOnAppInit()
+
+    // console.log("NEW DATA   ==>", this.product_variants())
+    // console.log("NEW DATA  GRIG ==>", this.realtimeService.product_variant())
+    console.log("THIS IS THE ARRAY")
+    console.log(" ")
+    console.log(this.productDetail())
+    console.log(' ')
+    console.log("THIS IS THE ARRAY")
+  }
+
+  getSubRouteOnAppInit() {
     this.routeSub = this.route.paramMap.subscribe((params) => {
       const idParam = params.get('product-id');
       if (idParam) {
         const id = parseInt(idParam, 10);
-        this.productId.set(id);
+        this.productId.set(idParam);
         this.loadProductMockData(id);
       }
     });
   }
+
+  productDetail = computed(() => {
+    console.log(this.productId())
+    return this.product_variants().filter((p) => {
+      return p.product_id === this.productId()
+    })
+  })
 
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
