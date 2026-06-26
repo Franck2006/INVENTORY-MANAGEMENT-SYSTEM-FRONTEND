@@ -275,6 +275,9 @@ export class Products implements OnInit {
 
   constructor() {
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
+    effect(() => {
+      console.log("=======> THESE ARE THE SUPPLIERS <======", this.formSuppliers())
+    })
   }
   ngOnInit(): void { }
 
@@ -330,6 +333,7 @@ export class Products implements OnInit {
   readonly formSuppliers = computed(() => {
     const suppliers = this.suppliersFromRealtime();
     const options: DevAppSelectOption[] = [];
+
     // Assuming supplier objects have 'id' and 'companyName' properties
     suppliers.forEach((s) =>
       options.push({ value: s.id, label: s.company_name || 'Unknown Supplier' }),

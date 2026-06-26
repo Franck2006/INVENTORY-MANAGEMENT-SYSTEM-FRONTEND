@@ -44,14 +44,6 @@ export namespace GeneralModel {
     // Add other product properties if they exist
   }
 
-  // Placeholder for other models if they exist, otherwise remove or define them
-  // export interface  {
-  //   sku: string;
-  //   size: string;
-  //   color: string;
-  //   price: string;
-  //   product_id: string
-  // }
 
   export interface ProductVariant extends ID {
     sku: string
@@ -76,6 +68,44 @@ export namespace GeneralModel {
   }
   export interface StockMovement {
     /* Define properties */
+  }
+
+
+
+  export interface PurchaseOrder {
+    id: string;
+    supplierName: string;
+    orderAt: Date;
+    totalCost: number;
+    status: OrderStatus; // Now using the enum type
+    expectedDelivery: Date | null;
+    supplierId: string;
+    totalItems: number;
+
+    // Optional database relations
+    supplier?: Supplier;
+    items?: PurchaseOrderItem[];
+  }
+
+
+  export interface PurchaseOrderItem {
+    id: string;
+    quantityOrdered: number;
+    quantityReceived: number;
+    unitCost: number;
+    purchaseOrderId: string;
+    productVariantId: string;
+
+    // Relations (Optional, populated when using Prisma's `include`)
+    purchaseOrder?: PurchaseOrder;
+    productVariant?: ProductVariant;
+  }
+
+  export enum OrderStatus {
+    DRAFT = 'DRAFT',
+    PENDING = 'PENDING',
+    RECEIVED = 'RECEIVED',
+    CANCELLED = 'CANCELLED',
   }
 }
 

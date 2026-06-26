@@ -150,12 +150,13 @@ interface DetailedProduct {
                       'Size Dimension',
                       'Color Tone',
                       'Physical Stock',
+                      'Calculated Final Price',
                       'Actions',
                     ]"
                     [data]="productDetail()"
                   >
 
-                      <!-- 'Calculated Final Price', -->
+                      <!-- , -->
 
                     <ng-template #rowTemplate let-variant>
                       <td class="px-4 md:px-6 py-4 font-mono font-medium text-slate-400 text-xs">
@@ -183,12 +184,11 @@ interface DetailedProduct {
                           {{ variant.low_stock_threshold}} units
                         </span>
                       </td>
-                      <!-- <td
+                      <td
                         class="px-4 md:px-6 py-4 font-mono font-extrabold text-slate-200 text-right"
                       >
-                      {{""}}
-                        \${{ (product()!.basePrice + variant.additionalPrice).toFixed(2) }}
-                      </td> -->
+                        \${{ (choosenProduct()!.base_price * variant!.low_stock_threshold).toFixed(2) }}
+                      </td>
                       <td class="px-4 md:px-6 py-4 text-center">
                         <app-dev-app-action-menu
                           [items]="variantMenuActions"

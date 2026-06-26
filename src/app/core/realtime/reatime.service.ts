@@ -17,11 +17,14 @@ export class RealtimeService implements OnDestroy {
   public readonly suppliers = signal<GeneralModel.Supplier[]>([]);
   public readonly category = signal<GeneralModel.Category[]>([]);
   public readonly product_variant = signal<GeneralModel.ProductVariant[]>([]);
-  public readonly cart = signal<GeneralModel.Product | null>(null);
-  public readonly customer = signal<GeneralModel.Customer | null>(null);
-  public readonly orders = signal<GeneralModel.Order | null>(null);
-  public readonly order_items = signal<GeneralModel.OrderItem | null>(null);
-  public readonly stock_movement = signal<GeneralModel.StockMovement | null>(null);
+  public readonly cart = signal<GeneralModel.Product[]>([]);
+  public readonly customer = signal<GeneralModel.Customer[]>([]);
+  public readonly orders = signal<GeneralModel.Order[]>([]);
+  public readonly order_items = signal<GeneralModel.OrderItem[]>([]);
+  public readonly stock_movement = signal<GeneralModel.StockMovement[]>([]);
+  public readonly purchase_order = signal<GeneralModel.PurchaseOrder[]>([]);
+  public readonly purchase_order_item = signal<GeneralModel.PurchaseOrderItem[]>([]);
+
 
   constructor() {
     this.initRealtimeSync();
@@ -85,11 +88,27 @@ export class RealtimeService implements OnDestroy {
       this.suppliers.set(suppliersData || []); // No need for explicit cast here as it's already typed
     }
 
+    // Fetch purchase order
+    const { data: purchaseOrder, error: purchaseOrderError } = (await this.supabase
+      .from('purchase_orders')
+      .select('*')) as { data: GeneralModel.PurchaseOrder[] | null; error: any };
+
+    if (purchaseOrderError) {
+      console.error('Error fetching initial suppliers:', purchaseOrderError);
+    } else {
+      this.purchase_order.set(purchaseOrder || []); // No need for explicit cast here as it's already typed
+    }
+
     console.log('Initial data fetched from Supabase.');
+    console.log("  ")
+    console.log("  ")
     console.log('Initial products:', this.products());
     console.log('Initial product_variant:', this.product_variant());
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
+    console.log('Initial purchase_order:', this.purchase_order());
+    console.log("  ")
+    console.log("  ")
   }
 
   private setupProductRealtime() {
