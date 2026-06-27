@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { COMPOSITION_BUFFER_MODE, FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
 import { DevAppSelect, DevAppSelectOption } from '../../shared/ui/dev-app-select/dev-app-select';
@@ -25,6 +25,21 @@ interface PurchaseOrder {
   totalItems: number;
   status: 'DRAFT' | 'PENDING' | 'RECEIVED' | 'CANCELLED';
   expectedDelivery: Date | string | null;
+}
+
+interface PurchaseOrderRow {
+  id: string;
+  vendorName: string;
+  supplierName: string;
+  supplierEmail: string;
+  quantity_ordered: number;
+  quantity_received: number;
+  orderedAt: Date | string | null;
+  productName: string;
+  totalCost: number;
+  expected_delivery: Date | string | null;
+  status: PurchaseOrder['status'];
+  totalItems: number;
 }
 
 @Component({
@@ -253,7 +268,7 @@ interface PurchaseOrder {
    
   `,
 })
-export class PurchaseOrders implements OnInit {
+export class PurchaseOrders {
   constructor() {
     this.filterForm.valueChanges.subscribe((value) => {
       this.filters.set({
@@ -261,23 +276,14 @@ export class PurchaseOrders implements OnInit {
         status: value.status ?? 'ALL',
       });
     });
-
-  }
-
-  ngOnInit(): void {
-    console.log("======> purchaseOrderItems<====")
-    console.log(this.purchaseOrderItems())
-    console.log("======> purchaseOrderItems<====")
-
   }
 
   private readonly formBuilder = inject(FormBuilder);
   private readonly realtimeService = inject(RealtimeService);
-  private readonly purchaseOrderService = inject(PurchaseOrderService)
+  private readonly purchaseOrderService = inject(PurchaseOrderService);
 
-  private readonly realtimePurchaseOrders = this.realtimeService.purchase_order
-  private readonly realtimeSuppliers = this.realtimeService.suppliers
-  private readonly realtimeProductItem = this.realtimeService.purchase_order_items
+  private readonly realtimeSuppliers = this.realtimeService.suppliers;
+  private readonly realtimeProductItem = this.realtimeService.purchase_order_items;
 
 
   readonly isOrderModalOpen = signal<boolean>(false);
@@ -352,55 +358,38 @@ export class PurchaseOrders implements OnInit {
     },
   ]);
 
-  readonly purchaseOrderItems = computed(() => {
+  readonly purchaseOrderItems = computed<PurchaseOrderRow[]>(() => {
     return this.realtimeProductItem().map((po) => {
-      console.log(" ")
-      console.log("======> THIS IS A SINGLE ITEM <====")
-      console.log(po);
-      console.log("======> THIS IS A SINGLE ITEM <====")
-      console.log(" ")
-
-
+      const status = (po.purchase_orders?.status ?? 'DRAFT') as PurchaseOrder['status'];
 
       return {
-
-        // these are for the quantities
-        quantity_ordered: po.quantity_ordered,
-        quantity_received: po.quantity_received,
-
-        // this is for the supplier
-        supplierName: po.purchase_orders?.vendor_name,
-        expected_delivery: po.purchase_orders?.expected_delivery,
-        orderedAt: po.purchase_orders?.orderAt,
-        totalCost: po.purchase_orders?.total_cost,
-        // totalItems: po.purchase_orders?.purchase_orders_items?.length ?? 0,
-        status: po.purchase_orders?.status,
-
-        // this is for the product
-        productName: po.product_variants?.products?.name,
-        lowStockThreshold: po.product_variants?.low_stock_threshold,
-        supplierEmail: po.product_variants?.products?.suppliers?.email,
-        supplierPhone: po.product_variants?.products?.suppliers?.phone,
-
-      }
-
-
-
+        id: po.id,
+        vendorName: po.purchase_orders?.vendor_name ?? '',
+        supplierName: po.purchase_orders?.vendor_name ?? '',
+        supplierEmail: po.product_variants?.products?.suppliers?.email ?? '',
+        quantity_ordered: po.quantity_ordered ?? 0,
+        quantity_received: po.quantity_received ?? 0,
+        orderedAt: po.purchase_orders?.orderAt ?? null,
+        productName: po.product_variants?.products?.name ?? '',
+        totalCost: po.purchase_orders?.total_cost ?? 0,
+        expected_delivery: po.purchase_orders?.expected_delivery ?? null,
+        status,
+        totalItems: po.purchase_orders?.totalItems ?? 0,
+      };
     });
   });
 
-  readonly displayedOrders = computed(() => {
-    const realtime = this.purchaseOrderItems();
-    const local = this.orders();
-
-    if (!realtime.length) {
-      return local;
+  readonly displayedOrders = computed<PurchaseOrderRow[]>(() => {
+    const realtimeRows = this.purchaseOrderItems();
+    if (!realtimeRows.length) {
+      return this.orders().map((order) => this.mapLocalOrderToRow(order));
     }
 
-    const merged: any[] = [...realtime];
-    local.forEach((order) => {
-      if (!merged.some((item) => item.id === order.id)) {
-        merged.push(order);
+    const merged = [...realtimeRows];
+    this.orders().forEach((order) => {
+      const row = this.mapLocalOrderToRow(order);
+      if (!merged.some((item) => item.id === row.id)) {
+        merged.push(row);
       }
     });
 
@@ -411,18 +400,12 @@ export class PurchaseOrders implements OnInit {
     const query = this.filters().search.toLowerCase().trim();
     const stat = this.filters().status || 'ALL';
 
-    return this.displayedOrders().filter((o) => {
-      const normalizedDate = String(o.orderDate).toLowerCase();
-      const normalizedDelivery = String(o.expectedDelivery).toLowerCase();
-      const matchSearch =
-        !query ||
-        o.vendorName.toLowerCase().includes(query) ||
-        o.id.toLowerCase().includes(query) ||
-        o.status.toLowerCase().includes(query) ||
-        normalizedDate.includes(query) ||
-        normalizedDelivery.includes(query);
-      const matchStatus = stat === 'ALL' || o.status === stat;
-      return matchSearch && matchStatus;
+    return this.displayedOrders().filter((order) => {
+      const matchesStatus = stat === 'ALL' || order.status === stat;
+      const matchesQuery =
+        !query || this.buildSearchText(order).includes(query);
+
+      return matchesStatus && matchesQuery;
     });
   });
 
@@ -432,6 +415,38 @@ export class PurchaseOrders implements OnInit {
     const start = (this.currentPage() - 1) * this.pageSize();
     return this.filteredOrders().slice(start, start + this.pageSize());
   });
+
+  private mapLocalOrderToRow(order: PurchaseOrder): PurchaseOrderRow {
+    return {
+      id: order.id,
+      vendorName: order.vendorName,
+      supplierName: order.vendorName,
+      supplierEmail: '',
+      quantity_ordered: order.totalItems,
+      quantity_received: 0,
+      orderedAt: order.orderDate,
+      productName: '',
+      totalCost: order.totalCost,
+      expected_delivery: order.expectedDelivery,
+      status: order.status,
+      totalItems: order.totalItems,
+    };
+  }
+
+  private buildSearchText(order: PurchaseOrderRow): string {
+    return [
+      order.id,
+      order.vendorName,
+      order.supplierName,
+      order.supplierEmail,
+      order.productName,
+      order.status,
+      order.orderedAt ? String(order.orderedAt) : '',
+      order.expected_delivery ? String(order.expected_delivery) : '',
+    ]
+      .join(' ')
+      .toLowerCase();
+  }
 
   onOrderAction(event: { itemId: string; context: any }): void {
     const target = event.context as PurchaseOrder;
@@ -461,37 +476,15 @@ export class PurchaseOrders implements OnInit {
     if (this.orderForm.invalid) return;
 
     this.isSaving.set(true);
-    const formValues = this.orderForm.value;
 
     this.purchaseOrderService.createOrderService({}).subscribe({
       next: () => {
         this.isSaving.set(false);
         this.closeModal();
-        console.log("everything was okay")
       },
-      error: (e) => {
+      error: () => {
         this.isSaving.set(false);
-        console.log("somting went wrong", e)
-      }
-    })
-
-
-
-    // setTimeout(() => {
-    //   const uniqueId = `PO-2026-00${this.orders().length + 1}`;
-    //   const newPo: PurchaseOrder = {
-    //     id: uniqueId,
-    //     vendorName: formValues.vendorName!,
-    //     orderDate: '2026-06-20',
-    //     totalCost: Number(formValues.totalCost!),
-    //     totalItems: Number(formValues.totalItems!),
-    //     status: 'PENDING',
-    //     expectedDelivery: formValues.expectedDelivery!,
-    //   };
-
-    //   this.orders.update((current) => [newPo, ...current]);
-    //   this.isSaving.set(false);
-    //   this.closeModal();
-    // }, 1200);
+      },
+    });
   }
 }
