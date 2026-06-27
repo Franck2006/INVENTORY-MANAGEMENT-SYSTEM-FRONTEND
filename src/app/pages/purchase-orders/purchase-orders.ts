@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
+import { COMPOSITION_BUFFER_MODE, FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
 import { DevAppSelect, DevAppSelectOption } from '../../shared/ui/dev-app-select/dev-app-select';
@@ -14,15 +14,17 @@ import {
 } from '../../shared/ui/dev-app-action-menu/dev-app-action-menu';
 import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
+import { RealtimeService } from '../../core/realtime/reatime.service';
+import { PurchaseOrderService } from '../../services/purchase-order/purchase-order.service';
 
 interface PurchaseOrder {
   id: string;
   vendorName: string;
-  orderDate: string;
+  orderDate: Date | string;
   totalCost: number;
   totalItems: number;
   status: 'DRAFT' | 'PENDING' | 'RECEIVED' | 'CANCELLED';
-  expectedDelivery: string;
+  expectedDelivery: Date | string | null;
 }
 
 @Component({
@@ -42,6 +44,7 @@ interface PurchaseOrder {
     DevAppActionMenu,
     AppDevBtn,
     Dashboard,
+
   ],
   template: `
     <app-dashboard>
@@ -80,6 +83,7 @@ interface PurchaseOrder {
             <app-dev-app-select
               formControlName="status"
               [options]="statusFilterOptions"
+              [withSearch]="true"
               label="Filter by Order Status"
             ></app-dev-app-select>
           </div>
@@ -103,15 +107,17 @@ interface PurchaseOrder {
               ]"
               [data]="paginatedOrders()"
             >
-              <ng-template #rowTemplate let-order>
+            <!-- purchaseOrders -->
+             <!-- paginatedOrders -->
+              <ng-template #rowTemplate let-order let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
-                  #{{ order.id }}
+                  #{{ index + 1 }}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
                   {{ order.vendorName }}
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-400">
-                  {{ order.orderDate }}
+                  {{ order.orderDate | date :'mediumDate'}}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-center font-mono font-medium text-slate-400">
                   {{ order.totalItems }} units
@@ -120,7 +126,7 @@ interface PurchaseOrder {
                   \${{ order.totalCost.toFixed(2) }}
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-500">
-                  {{ order.expectedDelivery }}
+                  {{ (order.expectedDelivery | date :'mediumDate') ?? 'insert delivery date' }}
                 </td>
                 <td class="px-4 md:px-6 py-4">
                   @switch (order.status) {
@@ -171,6 +177,7 @@ interface PurchaseOrder {
           </div>
         </app-dev-app-card>
 
+        <!-- this is the model -->
         <app-dev-app-modal
           [isOpen]="isOrderModalOpen()"
           title="Draft New Purchase Requisition Contract"
@@ -180,7 +187,8 @@ interface PurchaseOrder {
           <form [formGroup]="orderForm" class="space-y-5 text-left">
             <app-dev-app-select
               formControlName="vendorName"
-              [options]="vendorFormOptions"
+              [options]="suppliersFormOptions()"
+              [withSearch]="true"
               label="Assigned Vendor Supplier Partner *"
             ></app-dev-app-select>
 
@@ -229,19 +237,35 @@ interface PurchaseOrder {
   `,
 })
 export class PurchaseOrders {
-  private readonly fb = inject(FormBuilder);
+  constructor() {
+    this.filterForm.valueChanges.subscribe((value) => {
+      this.filters.set({
+        search: value.search ?? '',
+        status: value.status ?? 'ALL',
+      });
+    });
+  }
+
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly realtimeService = inject(RealtimeService);
+
+  private readonly realtimePurchaseOrders = this.realtimeService.purchase_order
+  private readonly realtimeSuppliers = this.realtimeService.suppliers
+  private readonly purchaseOrderService = inject(PurchaseOrderService)
 
   readonly isOrderModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
 
-  readonly filterForm = this.fb.group({
+  readonly filterForm = this.formBuilder.group({
     search: [''],
     status: ['ALL'],
   });
 
-  readonly orderForm = this.fb.group({
+  readonly filters = signal({ search: '', status: 'ALL' });
+
+  readonly orderForm = this.formBuilder.group({
     vendorName: ['', Validators.required],
     totalItems: ['', [Validators.required, Validators.min(1)]],
     totalCost: ['', [Validators.required, Validators.min(1)]],
@@ -261,10 +285,15 @@ export class PurchaseOrders {
     { value: 'CANCELLED', label: 'Voided / Cancelled' },
   ];
 
-  readonly vendorFormOptions: DevAppSelectOption[] = [
-    { value: 'Textile Horizon SARL', label: 'Textile Horizon SARL' },
-    { value: 'AfroFashion Manufacturing', label: 'AfroFashion Manufacturing' },
-  ];
+  readonly suppliersFormOptions = computed<DevAppSelectOption[]>(() => {
+    return this.realtimeSuppliers().map((s) => {
+      return {
+        value: s.company_name,
+        label: s.company_name
+      }
+    })
+  })
+
 
   readonly orders = signal<PurchaseOrder[]>([
     {
@@ -296,23 +325,57 @@ export class PurchaseOrders {
     },
   ]);
 
-  constructor() {
-    this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
-  }
+  readonly purchaseOrders = computed(() => {
+    return this.realtimePurchaseOrders().map((po) => ({
+      id: po.id,
+      vendorName: po.vendor_name,
+      orderDate: po.order_date,
+      totalCost: po.total_cost,
+      totalItems: po.purchase_order_items?.length ?? 0,
+      status: po.status,
+      expectedDelivery: po.expected_delivery,
+    }));
+  });
+
+  readonly displayedOrders = computed(() => {
+    const realtime = this.purchaseOrders();
+    const local = this.orders();
+
+    if (!realtime.length) {
+      return local;
+    }
+
+    const merged: PurchaseOrder[] = [...realtime];
+    local.forEach((order) => {
+      if (!merged.some((item) => item.id === order.id)) {
+        merged.push(order);
+      }
+    });
+
+    return merged;
+  });
 
   readonly filteredOrders = computed(() => {
-    const query = (this.filterForm.get('search')?.value || '').toLowerCase().trim();
-    const stat = this.filterForm.get('status')?.value || 'ALL';
+    const query = this.filters().search.toLowerCase().trim();
+    const stat = this.filters().status || 'ALL';
 
-    return this.orders().filter((o) => {
+    return this.displayedOrders().filter((o) => {
+      const normalizedDate = String(o.orderDate).toLowerCase();
+      const normalizedDelivery = String(o.expectedDelivery).toLowerCase();
       const matchSearch =
-        !query || o.vendorName.toLowerCase().includes(query) || o.id.toLowerCase().includes(query);
+        !query ||
+        o.vendorName.toLowerCase().includes(query) ||
+        o.id.toLowerCase().includes(query) ||
+        o.status.toLowerCase().includes(query) ||
+        normalizedDate.includes(query) ||
+        normalizedDelivery.includes(query);
       const matchStatus = stat === 'ALL' || o.status === stat;
       return matchSearch && matchStatus;
     });
   });
 
   readonly totalItems = computed(() => this.filteredOrders().length);
+
   readonly paginatedOrders = computed(() => {
     const start = (this.currentPage() - 1) * this.pageSize();
     return this.filteredOrders().slice(start, start + this.pageSize());
@@ -348,21 +411,35 @@ export class PurchaseOrders {
     this.isSaving.set(true);
     const formValues = this.orderForm.value;
 
-    setTimeout(() => {
-      const uniqueId = `PO-2026-00${this.orders().length + 1}`;
-      const newPo: PurchaseOrder = {
-        id: uniqueId,
-        vendorName: formValues.vendorName!,
-        orderDate: '2026-06-20',
-        totalCost: Number(formValues.totalCost!),
-        totalItems: Number(formValues.totalItems!),
-        status: 'PENDING',
-        expectedDelivery: formValues.expectedDelivery!,
-      };
+    this.purchaseOrderService.createOrderService({}).subscribe({
+      next: () => {
+        this.isSaving.set(false);
+        this.closeModal();
+        console.log("everything was okay")
+      },
+      error: (e) => {
+        this.isSaving.set(false);
+        console.log("somting went wrong", e)
+      }
+    })
 
-      this.orders.update((current) => [newPo, ...current]);
-      this.isSaving.set(false);
-      this.closeModal();
-    }, 1200);
+
+
+    // setTimeout(() => {
+    //   const uniqueId = `PO-2026-00${this.orders().length + 1}`;
+    //   const newPo: PurchaseOrder = {
+    //     id: uniqueId,
+    //     vendorName: formValues.vendorName!,
+    //     orderDate: '2026-06-20',
+    //     totalCost: Number(formValues.totalCost!),
+    //     totalItems: Number(formValues.totalItems!),
+    //     status: 'PENDING',
+    //     expectedDelivery: formValues.expectedDelivery!,
+    //   };
+
+    //   this.orders.update((current) => [newPo, ...current]);
+    //   this.isSaving.set(false);
+    //   this.closeModal();
+    // }, 1200);
   }
 }

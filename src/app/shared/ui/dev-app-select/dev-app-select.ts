@@ -162,8 +162,8 @@ export class DevAppSelect implements ControlValueAccessor {
   readonly searchQuery = signal<string>('');
   readonly isDisabled = signal<boolean>(false);
 
-  onChange: (value: any) => void = () => {};
-  onTouched: () => void = () => {};
+  onChange: (value: any) => void = () => { };
+  onTouched: () => void = () => { };
 
   // Find label of active item
   readonly selectedLabel = computed(() => {
@@ -206,6 +206,7 @@ export class DevAppSelect implements ControlValueAccessor {
   selectOption(option: DevAppSelectOption): void {
     this.value.set(option.value);
     this.onChange(option.value);
+    this.onTouched();
     this.isOpen.set(false);
     this.searchQuery.set('');
   }
@@ -216,7 +217,7 @@ export class DevAppSelect implements ControlValueAccessor {
   }
 
   writeValue(val: any): void {
-    this.value.set(val);
+    this.value.set(val ?? null);
   }
   registerOnChange(fn: (value: any) => void): void {
     this.onChange = fn;

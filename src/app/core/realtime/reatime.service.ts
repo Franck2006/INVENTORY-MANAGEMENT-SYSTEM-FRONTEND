@@ -23,7 +23,7 @@ export class RealtimeService implements OnDestroy {
   public readonly order_items = signal<GeneralModel.OrderItem[]>([]);
   public readonly stock_movement = signal<GeneralModel.StockMovement[]>([]);
   public readonly purchase_order = signal<GeneralModel.PurchaseOrder[]>([]);
-  public readonly purchase_order_item = signal<GeneralModel.PurchaseOrderItem[]>([]);
+  public readonly purchase_order_items = signal<GeneralModel.PurchaseOrderItem[]>([]);
 
 
   constructor() {
@@ -91,12 +91,24 @@ export class RealtimeService implements OnDestroy {
     // Fetch purchase order
     const { data: purchaseOrder, error: purchaseOrderError } = (await this.supabase
       .from('purchase_orders')
-      .select('*')) as { data: GeneralModel.PurchaseOrder[] | null; error: any };
+      .select('*,purchase_order_items(*)')) as { data: GeneralModel.PurchaseOrder[] | null; error: any };
 
     if (purchaseOrderError) {
       console.error('Error fetching initial suppliers:', purchaseOrderError);
     } else {
       this.purchase_order.set(purchaseOrder || []); // No need for explicit cast here as it's already typed
+    }
+
+    // Fetch purchase order
+    const { data: purchaseOrderItems, error: purchaseOrderItemsError } = (await this.supabase
+      .from('purchase_order_items')
+      .select('*,purchase_orders(*), product_variants(products(suppliers(*)))'))
+    // .order('created_at', { ascending: false })) //as { data: GeneralModel.OrderItem[] | null; error: any };
+
+    if (purchaseOrderItemsError) {
+      console.error('Error fetching initial suppliers:', purchaseOrderItemsError);
+    } else {
+      this.purchase_order_items.set(purchaseOrderItems || []); // No need for explicit cast here as it's already typed
     }
 
     console.log('Initial data fetched from Supabase.');
@@ -107,6 +119,7 @@ export class RealtimeService implements OnDestroy {
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
     console.log('Initial purchase_order:', this.purchase_order());
+    console.log('Initial purchase_order_items:', this.purchase_order_items());
     console.log("  ")
     console.log("  ")
   }

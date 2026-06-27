@@ -16,6 +16,7 @@ import {
 import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { DevAppQuickStatRow } from '../../shared/ui/dev-app-quick-stat-row/dev-app-quick-stat-row';
+import { RealtimeService } from '../../core/realtime/reatime.service';
 
 interface SupplierNode {
   id: string;
@@ -114,9 +115,9 @@ interface SupplierNode {
               ]"
               [data]="paginatedSuppliers()"
             >
-              <ng-template #rowTemplate let-supplier>
+              <ng-template #rowTemplate let-supplier let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
-                  #{{ supplier.id }}
+                  #{{ index }}
                 </td>
                 <td class="px-4 md:px-6 py-4 min-w-[240px] whitespace-normal">
                   <span class="font-semibold text-slate-200 block text-sm">{{
@@ -275,14 +276,17 @@ interface SupplierNode {
   `,
 })
 export class Suppliers {
-  private readonly fb = inject(FormBuilder);
+  private readonly formBuilder = inject(FormBuilder);
+  private readonly realtimeService = inject(RealtimeService)
+
+  private readonly suppliers = this.realtimeService.suppliers
 
   readonly isModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
 
-  readonly filterForm = this.fb.group({
+  readonly filterForm = this.formBuilder.group({
     search: [''],
     category: ['ALL'],
   });
@@ -291,7 +295,7 @@ export class Suppliers {
     initialValue: this.filterForm.value,
   });
 
-  readonly supplierForm = this.fb.group({
+  readonly supplierForm = this.formBuilder.group({
     vendorName: ['', Validators.required],
     category: ['MANUFACTURER', Validators.required],
     contactPerson: ['', Validators.required],

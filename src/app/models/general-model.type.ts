@@ -74,17 +74,22 @@ export namespace GeneralModel {
 
   export interface PurchaseOrder {
     id: string;
-    supplierName: string;
     orderAt: Date;
-    totalCost: number;
+    total_cost: number;
     status: OrderStatus; // Now using the enum type
-    expectedDelivery: Date | null;
+    expected_delivery: Date | null;
     supplierId: string;
     totalItems: number;
 
+    // i will delete this later
+    order_date: Date
+    vendor_name: string
+    purchase_order_items?: PurchaseOrderItem[];
+
+
     // Optional database relations
     supplier?: Supplier;
-    items?: PurchaseOrderItem[];
+    // items?: PurchaseOrderItem[];
   }
 
 
