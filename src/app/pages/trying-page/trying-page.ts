@@ -38,6 +38,7 @@ import {
   DevAppSelectInput,
   SelectInputOption,
 } from '../../shared/ui/dev-app-select-input/dev-app-select-input';
+import { DevAppDateInput } from "../../shared/ui/dev-app-date-input/dev-app-date-input";
 
 @Component({
   selector: 'app-trying-page',
@@ -66,6 +67,7 @@ import {
     DevAppTooltip,
     Dashboard,
     DevAppSelectInput,
+    DevAppDateInput
   ],
   templateUrl: './trying-page.html',
   styleUrl: './trying-page.css',

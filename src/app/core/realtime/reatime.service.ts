@@ -16,7 +16,7 @@ export class RealtimeService implements OnDestroy {
   public readonly products = signal<GeneralModel.Product[]>([]);
   public readonly suppliers = signal<GeneralModel.Supplier[]>([]);
   public readonly category = signal<GeneralModel.Category[]>([]);
-  public readonly product_variant = signal<GeneralModel.ProductVariant[]>([]);
+  public readonly product_variants = signal<GeneralModel.ProductVariant[]>([]);
   public readonly cart = signal<GeneralModel.Product[]>([]);
   public readonly customer = signal<GeneralModel.Customer[]>([]);
   public readonly orders = signal<GeneralModel.Order[]>([]);
@@ -63,7 +63,7 @@ export class RealtimeService implements OnDestroy {
     if (productVariantsError) {
       console.error('Error fetching initial products:', productVariantsError);
     } else {
-      this.product_variant.set((productVariantsData as GeneralModel.ProductVariant[]) || []);
+      this.product_variants.set((productVariantsData as GeneralModel.ProductVariant[]) || []);
     }
 
     // Fetch categories
@@ -115,7 +115,7 @@ export class RealtimeService implements OnDestroy {
     console.log("  ")
     console.log("  ")
     console.log('Initial products:', this.products());
-    console.log('Initial product_variant:', this.product_variant());
+    console.log('Initial product_variant:', this.product_variants());
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
     console.log('Initial purchase_order:', this.purchase_orders());

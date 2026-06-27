@@ -216,7 +216,7 @@ export class ProductDetail implements OnInit, OnDestroy {
   private routeSub?: Subscription;
   private readonly realtimeService = inject(RealtimeService)
 
-  private readonly realtimeProductVariants = this.realtimeService.product_variant
+  private readonly realtimeProductVariants = this.realtimeService.product_variants
   private readonly realtimeProduct = this.realtimeService.products
 
   readonly productId = signal<string | null>(null);

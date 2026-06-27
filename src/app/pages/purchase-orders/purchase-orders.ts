@@ -216,13 +216,25 @@ interface PurchaseOrderRow {
           (close)="closeModal()"
         >
           <form [formGroup]="orderForm" class="space-y-5 text-left">
-            <app-dev-app-select
-              formControlName="vendorName"
-              [options]="suppliersFormOptions()"
-              [withSearch]="true"
-              label="Assigned Vendor Supplier Partner *"
-            ></app-dev-app-select>
+            
+            <div>
+              <app-dev-app-select
+                formControlName="supplierId"
+                [options]="suppliersFormOptions()"
+                [withSearch]="true"
+                label="Assigned Supplier *"
+              ></app-dev-app-select>
+            </div>
 
+            <div>
+              <app-dev-app-select
+                formControlName="productVariantId"
+                [options]="productVariantsFormOptions()"
+                [withSearch]="true"
+                label="Product Variant *"
+              ></app-dev-app-select>
+            </div>
+            
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <app-dev-app-input
                 formControlName="totalItems"
@@ -239,11 +251,14 @@ interface PurchaseOrderRow {
               ></app-dev-app-input>
             </div>
 
-            <app-dev-app-input
-              formControlName="expectedDelivery"
-              label="Target Scheduled Delivery Date *"
-              placeholder="YYYY-MM-DD"
-            ></app-dev-app-input>
+            <div class="space-y-2">
+              <label class="block text-sm font-medium text-slate-200">Target Scheduled Delivery Date *</label>
+              <input
+                formControlName="expectedDelivery"
+                type="date"
+                class="w-full h-12 rounded-xl border border-[#3A506B]/40 bg-[#1C2541] px-4 py-3 text-sm text-slate-100 outline-none transition duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
           </form>
           <!--   [type]="date" -->
 
@@ -301,8 +316,7 @@ export class PurchaseOrders {
   private readonly realtimeSuppliers = this.realtimeService.suppliers;
   private readonly realtimeProductItem = this.realtimeService.purchase_order_items;
   private readonly realtimeOrders = this.realtimeService.purchase_orders
-
-
+  private readonly realtimeProductViariants = this.realtimeService.product_variants;
 
   readonly isOrderModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
@@ -319,10 +333,12 @@ export class PurchaseOrders {
   readonly filters = signal({ search: '', status: 'ALL' });
 
   readonly orderForm = this.formBuilder.group({
-    vendorName: ['', Validators.required],
-    totalItems: ['', [Validators.required, Validators.min(1)]],
-    totalCost: ['', [Validators.required, Validators.min(1)]],
+    supplierId: ['', Validators.required],
+    productVariantId: ['', Validators.required],
+    totalItems: [1, [Validators.required, Validators.min(1)]],
+    totalCost: [0, [Validators.required, Validators.min(0.01)]],
     expectedDelivery: ['', Validators.required],
+    status: ['DRAFT'],
   });
 
   readonly orderMenuActions: DevAppMenuItem[] = [
@@ -340,13 +356,24 @@ export class PurchaseOrders {
   ];
 
   readonly suppliersFormOptions = computed<DevAppSelectOption[]>(() => {
-    return this.realtimeSuppliers().map((s) => {
+    return this.realtimeSuppliers().map((supplier) => {
       return {
-        value: s.company_name,
-        label: s.company_name
-      }
-    })
-  })
+        value: supplier.id,
+        label: supplier.company_name ?? supplier.email ?? supplier.id,
+      };
+    });
+  });
+
+  readonly productVariantsFormOptions = computed<DevAppSelectOption[]>(() => {
+    return this.realtimeProductViariants().map((variant) => {
+      const label = variant.sku ? `${variant.sku} • ${variant.color}` : `${variant.color}`;
+      return {
+        value: variant.id,
+        label,
+      };
+    });
+  });
+
 
 
   readonly orders = signal<PurchaseOrder[]>([
@@ -543,7 +570,31 @@ export class PurchaseOrders {
 
     this.isSaving.set(true);
 
-    this.purchaseOrderService.createOrderService({}).subscribe({
+    const formValue = this.orderForm.value;
+    const supplierId = formValue.supplierId ?? '';
+    const supplierName = this.getSupplierName(supplierId);
+    const totalItems = Number(formValue.totalItems);
+    const totalCost = Number(formValue.totalCost);
+    const unitCost = totalItems > 0 ? Number((totalCost / totalItems).toFixed(2)) : 0;
+
+    const payload = {
+      supplierId,
+      supplierName,
+      orderAt: new Date().toISOString(),
+      totalCost,
+      totalItems,
+      status: formValue.status,
+      expectedDelivery: this.formatPrismaDate(formValue.expectedDelivery),
+      items: [
+        {
+          productVariantId: formValue.productVariantId,
+          quantityOrdered: totalItems,
+          unitCost,
+        },
+      ],
+    };
+
+    this.purchaseOrderService.createOrderService(payload).subscribe({
       next: () => {
         this.triggerNotification('success', 'Purchase order created', 'The purchase order was submitted successfully.');
         this.isSaving.set(false);
@@ -554,5 +605,18 @@ export class PurchaseOrders {
         this.isSaving.set(false);
       },
     });
+  }
+
+  private getSupplierName(supplierId: string): string {
+    const supplier = this.realtimeSuppliers().find((s) => s.id === supplierId);
+    return supplier?.company_name ?? '';
+  }
+
+  private formatPrismaDate(dateString: string | null | undefined): string | null {
+    if (!dateString) return null;
+    const [year, month, day] = dateString.split('-').map(Number);
+    if (!year || !month || !day) return null;
+    const date = new Date(Date.UTC(year, month - 1, day));
+    return date.toISOString();
   }
 }
