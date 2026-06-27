@@ -22,7 +22,7 @@ export class RealtimeService implements OnDestroy {
   public readonly orders = signal<GeneralModel.Order[]>([]);
   public readonly order_items = signal<GeneralModel.OrderItem[]>([]);
   public readonly stock_movement = signal<GeneralModel.StockMovement[]>([]);
-  public readonly purchase_order = signal<GeneralModel.PurchaseOrder[]>([]);
+  public readonly purchase_orders = signal<GeneralModel.PurchaseOrder[]>([]);
   public readonly purchase_order_items = signal<GeneralModel.PurchaseOrderItem[]>([]);
 
 
@@ -96,7 +96,7 @@ export class RealtimeService implements OnDestroy {
     if (purchaseOrderError) {
       console.error('Error fetching initial suppliers:', purchaseOrderError);
     } else {
-      this.purchase_order.set(purchaseOrder || []); // No need for explicit cast here as it's already typed
+      this.purchase_orders.set(purchaseOrder || []); // No need for explicit cast here as it's already typed
     }
 
     // Fetch purchase order
@@ -118,7 +118,7 @@ export class RealtimeService implements OnDestroy {
     console.log('Initial product_variant:', this.product_variant());
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
-    console.log('Initial purchase_order:', this.purchase_order());
+    console.log('Initial purchase_order:', this.purchase_orders());
     console.log('Initial purchase_order_items:', this.purchase_order_items());
     console.log("  ")
     console.log("  ")

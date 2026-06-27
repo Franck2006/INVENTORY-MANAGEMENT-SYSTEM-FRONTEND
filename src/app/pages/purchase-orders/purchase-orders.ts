@@ -16,6 +16,8 @@ import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { RealtimeService } from '../../core/realtime/reatime.service';
 import { PurchaseOrderService } from '../../services/purchase-order/purchase-order.service';
+import { DevAppToast, DevAppToastType, ToastModel } from '../../shared/ui/dev-app-toast/dev-app-toast';
+import { GeneralModel } from '../../models/general-model.type';
 
 interface PurchaseOrder {
   id: string;
@@ -28,7 +30,7 @@ interface PurchaseOrder {
 }
 
 interface PurchaseOrderRow {
-  id: string;
+  orderItemId: string;
   vendorName: string;
   supplierName: string;
   supplierEmail: string;
@@ -40,6 +42,7 @@ interface PurchaseOrderRow {
   expected_delivery: Date | string | null;
   status: PurchaseOrder['status'];
   totalItems: number;
+  purchaseOrderId?: string
 }
 
 @Component({
@@ -59,7 +62,7 @@ interface PurchaseOrderRow {
     DevAppActionMenu,
     AppDevBtn,
     Dashboard,
-
+    DevAppToast,
   ],
   template: `
     <app-dashboard>
@@ -125,9 +128,7 @@ interface PurchaseOrderRow {
               ]"
               [data]="paginatedOrders()"
             >
-            <!-- purchaseOrders -->
-             <!-- paginatedOrders -->
-              <!-- purchaseOrderItems -->
+           
               <ng-template #rowTemplate let-orderItem let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
                   #{{ index + 1 }}
@@ -186,6 +187,7 @@ interface PurchaseOrderRow {
                   <app-dev-app-action-menu
                     [items]="orderMenuActions"
                     [rowContext]="orderItem"
+                    [loading]="orderActionLoading()"
                     (actionTriggered)="onOrderAction($event)"
                   ></app-dev-app-action-menu>
                 </td>
@@ -262,6 +264,20 @@ interface PurchaseOrderRow {
           </div>
         </app-dev-app-modal>
 
+        <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-3 w-[min(90vw,24rem)] pointer-events-none">
+          @for (toast of activeToasts(); track toast.id) {
+            <div class="pointer-events-auto">
+              <app-dev-app-toast
+                [id]="toast.id"
+                [type]="toast.type"
+                [title]="toast.title || null"
+                [message]="toast.message"
+                [duration]="toast.duration ?? 4000"
+                (close)="removeToastId($event)"
+              ></app-dev-app-toast>
+            </div>
+          }
+        </div>
       </div>
     </app-dashboard>
 
@@ -284,12 +300,16 @@ export class PurchaseOrders {
 
   private readonly realtimeSuppliers = this.realtimeService.suppliers;
   private readonly realtimeProductItem = this.realtimeService.purchase_order_items;
+  private readonly realtimeOrders = this.realtimeService.purchase_orders
+
 
 
   readonly isOrderModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
+  readonly activeToasts = signal<ToastModel[]>([]);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
+  readonly orderActionLoading = signal<boolean>(false);
 
   readonly filterForm = this.formBuilder.group({
     search: [''],
@@ -307,6 +327,7 @@ export class PurchaseOrders {
 
   readonly orderMenuActions: DevAppMenuItem[] = [
     { id: 'mark_received', label: 'Log Batch Received', icon: 'fas fa-clipboard-check' },
+    { id: 'mark_Pending', label: 'Log Batch Pending ', icon: 'fa-solid fa-truck-ramp-box' },
     { id: 'cancel_order', label: 'Void Contract', icon: 'fas fa-times-circle', variant: 'danger' },
   ];
 
@@ -363,7 +384,7 @@ export class PurchaseOrders {
       const status = (po.purchase_orders?.status ?? 'DRAFT') as PurchaseOrder['status'];
 
       return {
-        id: po.id,
+        orderItemId: po.id,
         vendorName: po.purchase_orders?.vendor_name ?? '',
         supplierName: po.purchase_orders?.vendor_name ?? '',
         supplierEmail: po.product_variants?.products?.suppliers?.email ?? '',
@@ -375,6 +396,10 @@ export class PurchaseOrders {
         expected_delivery: po.purchase_orders?.expected_delivery ?? null,
         status,
         totalItems: po.purchase_orders?.totalItems ?? 0,
+
+        // these are for the IDs
+        purchaseOrderId: po.purchase_order_id ?? '',
+
       };
     });
   });
@@ -388,7 +413,7 @@ export class PurchaseOrders {
     const merged = [...realtimeRows];
     this.orders().forEach((order) => {
       const row = this.mapLocalOrderToRow(order);
-      if (!merged.some((item) => item.id === row.id)) {
+      if (!merged.some((item) => item.orderItemId === row.orderItemId)) {
         merged.push(row);
       }
     });
@@ -418,7 +443,7 @@ export class PurchaseOrders {
 
   private mapLocalOrderToRow(order: PurchaseOrder): PurchaseOrderRow {
     return {
-      id: order.id,
+      orderItemId: order.id,
       vendorName: order.vendorName,
       supplierName: order.vendorName,
       supplierEmail: '',
@@ -430,12 +455,14 @@ export class PurchaseOrders {
       expected_delivery: order.expectedDelivery,
       status: order.status,
       totalItems: order.totalItems,
+      purchaseOrderId: ""
+
     };
   }
 
   private buildSearchText(order: PurchaseOrderRow): string {
     return [
-      order.id,
+      order.orderItemId,
       order.vendorName,
       order.supplierName,
       order.supplierEmail,
@@ -449,17 +476,40 @@ export class PurchaseOrders {
   }
 
   onOrderAction(event: { itemId: string; context: any }): void {
-    const target = event.context as PurchaseOrder;
-    if (!target) return;
+    const target = event.context as PurchaseOrderRow;
+    const status = this.mapOrderActionToStatus(event.itemId);
 
-    this.orders.update((current) =>
-      current.map((o) => {
-        if (o.id === target.id) {
-          return { ...o, status: event.itemId === 'mark_received' ? 'RECEIVED' : 'CANCELLED' };
-        }
-        return o;
-      }),
-    );
+    if (!target || !status) return;
+
+    const purchaseOrderId = target.purchaseOrderId;
+    if (!purchaseOrderId) return;
+
+    this.orderActionLoading.set(true);
+    this.purchaseOrderService.updateOrderService({ status }, purchaseOrderId).subscribe({
+      next: (data) => {
+        console.log(data);
+        this.triggerNotification('success', 'Purchase order updated', 'The purchase order status was updated successfully.');
+        this.orderActionLoading.set(false);
+      },
+      error: (e) => {
+        console.log(e);
+        this.triggerNotification('error', 'Update failed', 'The purchase order status could not be updated. Please try again.');
+        this.orderActionLoading.set(false);
+      },
+    });
+  }
+
+  private mapOrderActionToStatus(actionId: string): PurchaseOrder['status'] | null {
+    switch (actionId) {
+      case 'mark_received':
+        return 'RECEIVED';
+      case 'mark_Pending':
+        return 'PENDING';
+      case 'cancel_order':
+        return 'CANCELLED';
+      default:
+        return null;
+    }
   }
 
   onPageSizeChange(newSize: number): void {
@@ -472,6 +522,22 @@ export class PurchaseOrders {
     this.orderForm.reset();
   }
 
+  triggerNotification(type: DevAppToastType, title: string, message: string): void {
+    const newToast: ToastModel = {
+      id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      title,
+      message,
+      duration: 4000,
+    };
+
+    this.activeToasts.update((current) => [...current, newToast]);
+  }
+
+  removeToastId(toastId: string): void {
+    this.activeToasts.update((current) => current.filter((toast) => toast.id !== toastId));
+  }
+
   commitPurchaseOrder(): void {
     if (this.orderForm.invalid) return;
 
@@ -479,10 +545,12 @@ export class PurchaseOrders {
 
     this.purchaseOrderService.createOrderService({}).subscribe({
       next: () => {
+        this.triggerNotification('success', 'Purchase order created', 'The purchase order was submitted successfully.');
         this.isSaving.set(false);
         this.closeModal();
       },
       error: () => {
+        this.triggerNotification('error', 'Submission failed', 'The purchase order could not be created. Please try again.');
         this.isSaving.set(false);
       },
     });
