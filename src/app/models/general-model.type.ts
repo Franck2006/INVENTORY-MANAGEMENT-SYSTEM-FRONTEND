@@ -53,7 +53,7 @@ export namespace GeneralModel {
     low_stock_threshold: number
     id: string
     product_id: string
-    product: Product
+    products: Product
 
   }
 
@@ -72,8 +72,7 @@ export namespace GeneralModel {
 
 
 
-  export interface PurchaseOrder {
-    id: string;
+  export interface PurchaseOrder extends ID {
     orderAt: Date;
     total_cost: number;
     status: OrderStatus; // Now using the enum type
@@ -93,17 +92,16 @@ export namespace GeneralModel {
   }
 
 
-  export interface PurchaseOrderItem {
-    id: string;
-    quantityOrdered: number;
-    quantityReceived: number;
-    unitCost: number;
-    purchaseOrderId: string;
-    productVariantId: string;
+  export interface PurchaseOrderItem extends ID {
+    quantity_ordered: number;
+    quantity_received: number;
+    unit_cost: number;
+    purchase_order_id: string;
+    product_variant_id: string;
 
     // Relations (Optional, populated when using Prisma's `include`)
-    purchaseOrder?: PurchaseOrder;
-    productVariant?: ProductVariant;
+    purchase_orders?: PurchaseOrder;
+    product_variants?: ProductVariant;
   }
 
   export enum OrderStatus {

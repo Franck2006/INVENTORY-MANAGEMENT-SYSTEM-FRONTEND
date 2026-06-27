@@ -102,8 +102,8 @@ export class RealtimeService implements OnDestroy {
     // Fetch purchase order
     const { data: purchaseOrderItems, error: purchaseOrderItemsError } = (await this.supabase
       .from('purchase_order_items')
-      .select('*,purchase_orders(*), product_variants(products(suppliers(*)))'))
-    // .order('created_at', { ascending: false })) //as { data: GeneralModel.OrderItem[] | null; error: any };
+      .select('*,purchase_orders(*), product_variants(*,products(*,suppliers(*)))')) as { data: GeneralModel.PurchaseOrderItem[] | null; error: any };
+    // .order('created_at', { ascending: false })) //
 
     if (purchaseOrderItemsError) {
       console.error('Error fetching initial suppliers:', purchaseOrderItemsError);

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { COMPOSITION_BUFFER_MODE, FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
@@ -96,11 +96,14 @@ interface PurchaseOrder {
           <div class="w-full overflow-x-auto block whitespace-nowrap">
             <app-dev-app-table
               [headers]="[
-                'PO Reference',
-                'Vendor Supplier',
+               '#',
+               'Supplier Name',
+                'Supplier Email',
+                'quantity ordered',
+                'quantity received',
                 'Order Date',
                 'Items Volume',
-                'Total Value',
+                'Total Cost',
                 'Expected Delivery',
                 'Pipeline Status',
                 'Actions',
@@ -109,27 +112,38 @@ interface PurchaseOrder {
             >
             <!-- purchaseOrders -->
              <!-- paginatedOrders -->
-              <ng-template #rowTemplate let-order let-index="index">
+              <!-- purchaseOrderItems -->
+              <ng-template #rowTemplate let-orderItem let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
                   #{{ index + 1 }}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
-                  {{ order.vendorName }}
+                  {{ orderItem.supplierName }}
                 </td>
+                 <td class="px-4 md:px-6 py-4 text-slate-200 ">
+                  {{ orderItem.supplierEmail }}
+                </td>
+                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
+                  {{ orderItem.quantity_ordered }}
+                </td>
+                <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
+                  {{ orderItem.quantity_received }}
+                </td>
+                
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-400">
-                  {{ order.orderDate | date :'mediumDate'}}
+                  {{ (orderItem.orderedAt | date :'mediumDate')|| "time"}}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-center font-mono font-medium text-slate-400">
-                  {{ order.totalItems }} units
+                  {{ orderItem.productName  }} units
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono font-black text-slate-100 text-right">
-                  \${{ order.totalCost.toFixed(2) }}
+                  \${{ orderItem.totalCost.toFixed(2) }}
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-500">
-                  {{ (order.expectedDelivery | date :'mediumDate') ?? 'insert delivery date' }}
+                  {{ (orderItem.expected_delivery | date :'mediumDate') ?? 'insert delivery date' }}
                 </td>
                 <td class="px-4 md:px-6 py-4">
-                  @switch (order.status) {
+                  @switch (orderItem.status) {
                     @case ('RECEIVED') {
                       <app-dev-app-badge
                         label="Received & Stocked"
@@ -156,7 +170,7 @@ interface PurchaseOrder {
                 <td class="px-4 md:px-6 py-4 text-center">
                   <app-dev-app-action-menu
                     [items]="orderMenuActions"
-                    [rowContext]="order"
+                    [rowContext]="orderItem"
                     (actionTriggered)="onOrderAction($event)"
                   ></app-dev-app-action-menu>
                 </td>
@@ -232,11 +246,14 @@ interface PurchaseOrder {
             </app-app-dev-btn>
           </div>
         </app-dev-app-modal>
+
       </div>
     </app-dashboard>
+
+   
   `,
 })
-export class PurchaseOrders {
+export class PurchaseOrders implements OnInit {
   constructor() {
     this.filterForm.valueChanges.subscribe((value) => {
       this.filters.set({
@@ -244,14 +261,24 @@ export class PurchaseOrders {
         status: value.status ?? 'ALL',
       });
     });
+
+  }
+
+  ngOnInit(): void {
+    console.log("======> purchaseOrderItems<====")
+    console.log(this.purchaseOrderItems())
+    console.log("======> purchaseOrderItems<====")
+
   }
 
   private readonly formBuilder = inject(FormBuilder);
   private readonly realtimeService = inject(RealtimeService);
+  private readonly purchaseOrderService = inject(PurchaseOrderService)
 
   private readonly realtimePurchaseOrders = this.realtimeService.purchase_order
   private readonly realtimeSuppliers = this.realtimeService.suppliers
-  private readonly purchaseOrderService = inject(PurchaseOrderService)
+  private readonly realtimeProductItem = this.realtimeService.purchase_order_items
+
 
   readonly isOrderModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
@@ -325,27 +352,52 @@ export class PurchaseOrders {
     },
   ]);
 
-  readonly purchaseOrders = computed(() => {
-    return this.realtimePurchaseOrders().map((po) => ({
-      id: po.id,
-      vendorName: po.vendor_name,
-      orderDate: po.order_date,
-      totalCost: po.total_cost,
-      totalItems: po.purchase_order_items?.length ?? 0,
-      status: po.status,
-      expectedDelivery: po.expected_delivery,
-    }));
+  readonly purchaseOrderItems = computed(() => {
+    return this.realtimeProductItem().map((po) => {
+      console.log(" ")
+      console.log("======> THIS IS A SINGLE ITEM <====")
+      console.log(po);
+      console.log("======> THIS IS A SINGLE ITEM <====")
+      console.log(" ")
+
+
+
+      return {
+
+        // these are for the quantities
+        quantity_ordered: po.quantity_ordered,
+        quantity_received: po.quantity_received,
+
+        // this is for the supplier
+        supplierName: po.purchase_orders?.vendor_name,
+        expected_delivery: po.purchase_orders?.expected_delivery,
+        orderedAt: po.purchase_orders?.orderAt,
+        totalCost: po.purchase_orders?.total_cost,
+        // totalItems: po.purchase_orders?.purchase_orders_items?.length ?? 0,
+        status: po.purchase_orders?.status,
+
+        // this is for the product
+        productName: po.product_variants?.products?.name,
+        lowStockThreshold: po.product_variants?.low_stock_threshold,
+        supplierEmail: po.product_variants?.products?.suppliers?.email,
+        supplierPhone: po.product_variants?.products?.suppliers?.phone,
+
+      }
+
+
+
+    });
   });
 
   readonly displayedOrders = computed(() => {
-    const realtime = this.purchaseOrders();
+    const realtime = this.purchaseOrderItems();
     const local = this.orders();
 
     if (!realtime.length) {
       return local;
     }
 
-    const merged: PurchaseOrder[] = [...realtime];
+    const merged: any[] = [...realtime];
     local.forEach((order) => {
       if (!merged.some((item) => item.id === order.id)) {
         merged.push(order);

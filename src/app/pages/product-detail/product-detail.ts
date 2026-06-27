@@ -251,7 +251,7 @@ export class ProductDetail implements OnInit, OnDestroy {
   productDetail = computed(() => {
     console.log(this.productId())
     return this.realtimeProductVariants().filter((p) => {
-      const { color, id, low_stock_threshold, price, product, product_id, size } = p
+      const { color, id, low_stock_threshold, price, products, product_id, size } = p
 
       return p.product_id === this.productId()
     })
