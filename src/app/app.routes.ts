@@ -11,12 +11,14 @@ import { Suppliers } from './pages/suppliers/suppliers';
 import { Settings } from './pages/settings/settings';
 import { SignIn } from './core/auth/sign-in/sign-in';
 import { SignUp } from './core/auth/sign-up/sign-up';
+import { authGuard } from './core/guard/auth-guard';
 
 export const routes: Routes = [
   {
     path: '',
     redirectTo: 'sign-in',
     pathMatch: 'full',
+
   },
   {
     path: 'sign-in',
@@ -29,41 +31,56 @@ export const routes: Routes = [
   {
     path: 'trying-page',
     component: TryingPage,
+    canActivate: [authGuard]
   },
   {
     path: 'main-dashboard',
     component: MainDashboard,
+    canActivate: [authGuard]
   },
   {
     path: 'pos',
     component: Pos,
+    canActivate: [authGuard]
   },
   {
     path: 'products',
     component: Products,
+    canActivate: [authGuard]
   },
   {
     path: 'products/:product-id',
     component: ProductDetail,
+    canActivate: [authGuard]
   },
   {
     path: 'inventory',
     component: Inventory,
+    canActivate: [authGuard]
   },
   {
     path: 'purchase-orders',
     component: PurchaseOrders,
+    canActivate: [authGuard]
   },
   {
     path: 'customers',
     component: Customers,
+    canActivate: [authGuard]
   },
   {
     path: 'suppliers',
     component: Suppliers,
+    canActivate: [authGuard]
   },
   {
     path: 'settings',
     component: Settings,
+    canActivate: [authGuard]
   },
+  {
+    path: '**',
+    redirectTo: 'sign-in',
+    pathMatch: 'full',
+  }
 ];
