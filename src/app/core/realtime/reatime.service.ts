@@ -46,8 +46,8 @@ export class RealtimeService implements OnDestroy {
     // Fetch products with nested category and supplier
     const { data: productsData, error: productsError } = await this.supabase
       .from('products')
-      .select('*, suppliers(*), categories(*) ')
-      .order('created_at', { ascending: false }); // Corrected column name to 'created_at'
+      .select('*, suppliers(*), categories(*)')
+      .order('created_at', { ascending: false });
 
     if (productsError) {
       console.error('Error fetching initial products:', productsError);
@@ -126,11 +126,13 @@ export class RealtimeService implements OnDestroy {
 
   private setupProductRealtime() {
     this.productsRealtimeChannel = this.supabase
-      .channel('products-changes') // Unique channel name
+      .channel('products-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
-        async (payload: RealtimePostgresChangesPayload<GeneralModel.Product>) => { },
+        async (payload: RealtimePostgresChangesPayload<GeneralModel.Product>) => {
+          await this.handleProductEvent(payload);
+        },
       )
       .subscribe((status, err) => {
         console.log('Product Realtime Status:', status);
@@ -181,7 +183,7 @@ export class RealtimeService implements OnDestroy {
       // We need to re-fetch the full product with joins.
       const { data, error } = await this.supabase
         .from('products')
-        .select('*, categories(*), suppliers(*)') // Corrected to plural table names
+        .select('*, suppliers(*), categories(*)')
         .eq('id', newRecord.id)
         .single();
 

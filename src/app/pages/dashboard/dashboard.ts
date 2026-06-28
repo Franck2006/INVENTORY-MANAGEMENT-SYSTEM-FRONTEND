@@ -31,10 +31,10 @@ interface RecentActivity {
   selector: 'app-main-dashboard',
   standalone: true,
   imports: [
-    CommonModule, 
-    DevAppQuickStatRow, 
-    DevAppCard, 
-    DevAppBadge, 
+    CommonModule,
+    DevAppQuickStatRow,
+    DevAppCard,
+    DevAppBadge,
     Dashboard,
     SalesOverviewChart,
     StockStatusChart,
@@ -63,6 +63,7 @@ interface RecentActivity {
             </div>
           </div>
         </div>
+        
 
         <!-- ROW 2: Alerts & Top Products -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -277,6 +278,13 @@ export class MainDashboard {
     },
     {
       label: 'Low Stock Risks',
+      value: this.lowStockAlerts().length.toString(),
+      icon: 'fas fa-exclamation-triangle',
+      trend: 'Variants requiring replenishment POs',
+      isTrendPositive: this.lowStockAlerts().length === 0,
+    },
+    {
+      label: 'Products',
       value: this.lowStockAlerts().length.toString(),
       icon: 'fas fa-exclamation-triangle',
       trend: 'Variants requiring replenishment POs',
