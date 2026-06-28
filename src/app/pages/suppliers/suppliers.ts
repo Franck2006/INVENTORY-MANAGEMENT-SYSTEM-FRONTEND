@@ -3,9 +3,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
-import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
-import { DevAppSelect, DevAppSelectOption } from '../../shared/ui/dev-app-select/dev-app-select';
 import { DevAppInput } from '../../shared/ui/dev-app-input/dev-app-input';
+import { DevAppPhoneInput } from '../../shared/ui/dev-app-phone-input/dev-app-phone-input';
 import { DevAppTable } from '../../shared/ui/dev-app-table/dev-app-table';
 import { DevAppTablePagination } from '../../shared/ui/dev-app-table-pagination/dev-app-table-pagination';
 import { DevAppModal } from '../../shared/ui/dev-app-modal/dev-app-modal';
@@ -16,17 +15,17 @@ import {
 import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { DevAppQuickStatRow } from '../../shared/ui/dev-app-quick-stat-row/dev-app-quick-stat-row';
+import { DevAppToast, DevAppToastType, ToastModel } from '../../shared/ui/dev-app-toast/dev-app-toast';
 import { RealtimeService } from '../../core/realtime/reatime.service';
+import { GeneralModel } from '../../models/general-model.type';
+import { SupplierService } from '../../services/supplier/supplier.service';
 
-interface SupplierNode {
+interface SupplierTableRow {
   id: string;
-  vendorName: string;
-  category: 'FABRIC_MILL' | 'MANUFACTURER' | 'ACCESSORIES';
-  contactPerson: string;
+  companyName: string;
+  contactName: string;
   email: string;
   phone: string;
-  leadTimeDays: number;
-  status: 'ACTIVE' | 'UNDER_REVIEW' | 'BLACKLISTED';
 }
 
 @Component({
@@ -37,9 +36,8 @@ interface SupplierNode {
     FormsModule,
     ReactiveFormsModule,
     DevAppCard,
-    DevAppBadge,
-    DevAppSelect,
     DevAppInput,
+    DevAppPhoneInput,
     DevAppTable,
     DevAppTablePagination,
     DevAppModal,
@@ -47,6 +45,7 @@ interface SupplierNode {
     AppDevBtn,
     Dashboard,
     DevAppQuickStatRow,
+    DevAppToast,
   ],
   template: `
     <app-dashboard>
@@ -80,23 +79,28 @@ interface SupplierNode {
         ></app-dev-app-quick-stat-row>
 
         <!-- Operational Filters Matrix Grid Row -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-start" [formGroup]="filterForm">
-          <div class="md:col-span-2 w-full">
-            <app-dev-app-input
-              formControlName="search"
-              label="Search Supplier Clusters"
-              placeholder="Filter entities by trade identity name, manager token, or structural email..."
-            ></app-dev-app-input>
-          </div>
-
-          <div class="w-full">
-            <app-dev-app-select
-              formControlName="category"
-              [options]="categoryFilterOptions"
-              label="Filter by Sector Specialization"
-            ></app-dev-app-select>
-          </div>
+        <div class="w-full" [formGroup]="filterForm">
+          <app-dev-app-input
+            formControlName="search"
+            label="Search Supplier Clusters"
+            placeholder="Filter by supplier name, contact, or email..."
+          ></app-dev-app-input>
         </div>
+
+        @if (activeToasts().length > 0) {
+          <div class="fixed top-4 right-4 z-50 space-y-2">
+            @for (toast of activeToasts(); track toast.id) {
+              <app-dev-app-toast
+                [id]="toast.id"
+                [type]="toast.type"
+                [title]="toast.title ?? null"
+                [message]="toast.message"
+                [duration]="toast.duration ?? 3000"
+                (close)="removeToast($event)"
+              ></app-dev-app-toast>
+            }
+          </div>
+        }
 
         <!-- Master Ledger Card Grid Layout -->
         <app-dev-app-card
@@ -106,77 +110,30 @@ interface SupplierNode {
           <div class="w-full overflow-x-auto block whitespace-nowrap">
             <app-dev-app-table
               [headers]="[
-                'Vendor ID',
-                'Corporate Identity / Contact',
-                'Specialization Cluster',
-                'Factory Lead Time',
-                'Contract Status',
+                'Supplier ID',
+                'Supplier Name',
+                'Contact Name',
+                'Email',
+                'Phone',
                 'Actions',
               ]"
               [data]="paginatedSuppliers()"
             >
               <ng-template #rowTemplate let-supplier let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
-                  #{{ index }}
+                  #{{ index + 1}}
                 </td>
-                <td class="px-4 md:px-6 py-4 min-w-[240px] whitespace-normal">
-                  <span class="font-semibold text-slate-200 block text-sm">{{
-                    supplier.vendorName
-                  }}</span>
-                  <span class="text-[11px] text-slate-400 mt-0.5 block font-medium"
-                    >Attn: {{ supplier.contactPerson }}</span
-                  >
-                  <span class="text-[10px] text-slate-500 mt-0.5 block font-mono"
-                    >{{ supplier.email }} &bull; {{ supplier.phone }}</span
-                  >
+                <td class="px-4 md:px-6 py-4 min-w-[220px] whitespace-normal">
+                  <span class="font-semibold text-slate-200 block text-sm">{{ supplier.companyName }}</span>
                 </td>
-                <td class="px-4 md:px-6 py-4">
-                  @switch (supplier.category) {
-                    @case ('FABRIC_MILL') {
-                      <span
-                        class="text-xs bg-[#222E50]/60 text-indigo-300 px-2 py-1 rounded font-medium border border-indigo-500/15"
-                        >Textile & Fabric Mill</span
-                      >
-                    }
-                    @case ('MANUFACTURER') {
-                      <span
-                        class="text-xs bg-[#222E50]/60 text-sky-300 px-2 py-1 rounded font-medium border border-sky-500/15"
-                        >Cut & Sew Manufacturer</span
-                      >
-                    }
-                    @case ('ACCESSORIES') {
-                      <span
-                        class="text-xs bg-[#222E50]/60 text-amber-300 px-2 py-1 rounded font-medium border border-amber-500/15"
-                        >Hardware & Trim Supply</span
-                      >
-                    }
-                  }
+                <td class="px-4 md:px-6 py-4 min-w-[180px] whitespace-normal">
+                  <span class="text-sm text-slate-300">{{ supplier.contactName }}</span>
                 </td>
-                <td class="px-4 md:px-6 py-4 font-mono text-xs text-slate-300 text-center">
-                  <i class="far fa-clock text-[10px] text-slate-500 mr-1"></i>
-                  {{ supplier.leadTimeDays }} Days avg
+                <td class="px-4 md:px-6 py-4 min-w-[220px] whitespace-normal">
+                  <span class="text-sm text-slate-400">{{ supplier.email }}</span>
                 </td>
-                <td class="px-4 md:px-6 py-4">
-                  @switch (supplier.status) {
-                    @case ('ACTIVE') {
-                      <app-dev-app-badge
-                        label="Verified Active"
-                        variant="success"
-                      ></app-dev-app-badge>
-                    }
-                    @case ('UNDER_REVIEW') {
-                      <app-dev-app-badge
-                        label="Quality Audit"
-                        variant="warning"
-                      ></app-dev-app-badge>
-                    }
-                    @case ('BLACKLISTED') {
-                      <app-dev-app-badge
-                        label="Terminated Void"
-                        variant="danger"
-                      ></app-dev-app-badge>
-                    }
-                  }
+                <td class="px-4 md:px-6 py-4 min-w-[140px] whitespace-normal">
+                  <span class="text-sm text-slate-400">{{ supplier.phone }}</span>
                 </td>
                 <td class="px-4 md:px-6 py-4 text-center">
                   <app-dev-app-action-menu
@@ -205,55 +162,47 @@ interface SupplierNode {
         <!-- Vendor Entry Registration Modal Overlay -->
         <app-dev-app-modal
           [isOpen]="isModalOpen()"
-          title="Register Production Partner Contract Node"
+          title="Register Supplier"
           size="md"
           (close)="closeModal()"
         >
           <form [formGroup]="supplierForm" class="space-y-5 text-left">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div class="sm:col-span-2">
+            <div>
                 <app-dev-app-input
-                  formControlName="vendorName"
-                  label="Corporate Manufacturing Identity *"
+                  formControlName="companyName"
+                  label="Supplier Name *"
                   placeholder="e.g., Kivu Textile Processing Co."
                 ></app-dev-app-input>
-              </div>
-              <div>
-                <app-dev-app-select
-                  formControlName="category"
-                  [options]="categoryFormOptions"
-                  label="Sector Core Cluster *"
-                ></app-dev-app-select>
-              </div>
             </div>
 
-            <app-dev-app-input
-              formControlName="contactPerson"
-              label="Assigned Lead Account Representative *"
-              placeholder="e.g., Ephraim Mwangu"
-            ></app-dev-app-input>
+            <div>
+              <app-dev-app-input
+                formControlName="contactName"
+                label="Contact Name *"
+                placeholder="e.g., Ephraim Mwangu"
+              ></app-dev-app-input>
+            </div>
+           
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <app-dev-app-input
-                formControlName="email"
-                label="Corporate B2B Mail Gateway *"
-                placeholder="b2b@factory.org"
-                type="email"
-              ></app-dev-app-input>
+              <div>
+                <app-dev-app-input
+                  formControlName="email"
+                  label="Email *"
+                  placeholder="b2b@factory.org"
+                  type="email"
+                ></app-dev-app-input>
+              </div>
 
-              <app-dev-app-input
-                formControlName="phone"
-                label="Operational Routing Comms Line *"
-                placeholder="+243 850..."
-              ></app-dev-app-input>
+              <div>
+                <app-dev-app-phone-input
+                  formControlName="phone"
+                  label="Phone *"
+                ></app-dev-app-phone-input>
+              </div>
+
+             
             </div>
-
-            <app-dev-app-input
-              formControlName="leadTimeDays"
-              label="Guaranteed Fulfillment Cycle Window (Days) *"
-              placeholder="e.g., 14"
-              type="number"
-            ></app-dev-app-input>
           </form>
 
           <div modal-footer class="flex items-center justify-end gap-2 w-full">
@@ -267,7 +216,7 @@ interface SupplierNode {
               [loading]="isSaving()"
               (click)="commitSupplierNode()"
             >
-              Deploy Sourcing Stream
+              Save Supplier
             </app-app-dev-btn>
           </div>
         </app-dev-app-modal>
@@ -277,18 +226,19 @@ interface SupplierNode {
 })
 export class Suppliers {
   private readonly formBuilder = inject(FormBuilder);
-  private readonly realtimeService = inject(RealtimeService)
+  private readonly realtimeService = inject(RealtimeService);
+  private readonly supplierService = inject(SupplierService);
 
-  private readonly suppliers = this.realtimeService.suppliers
+  private readonly suppliers = this.realtimeService.suppliers;
 
   readonly isModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
+  readonly activeToasts = signal<ToastModel[]>([]);
 
   readonly filterForm = this.formBuilder.group({
     search: [''],
-    category: ['ALL'],
   });
 
   readonly filterFormValue = toSignal(this.filterForm.valueChanges, {
@@ -296,12 +246,10 @@ export class Suppliers {
   });
 
   readonly supplierForm = this.formBuilder.group({
-    vendorName: ['', Validators.required],
-    category: ['MANUFACTURER', Validators.required],
-    contactPerson: ['', Validators.required],
+    companyName: ['', Validators.required],
+    contactName: ['', Validators.required],
     email: ['', [Validators.required, Validators.email]],
     phone: ['', Validators.required],
-    leadTimeDays: ['', [Validators.required, Validators.min(1)]],
   });
 
   readonly supplierMenuActions: DevAppMenuItem[] = [
@@ -314,60 +262,21 @@ export class Suppliers {
     },
   ];
 
-  readonly categoryFilterOptions: DevAppSelectOption[] = [
-    { value: 'ALL', label: 'All Specializations' },
-    { value: 'FABRIC_MILL', label: 'Textile & Fabric Mills' },
-    { value: 'MANUFACTURER', label: 'Cut & Sew Assembly Plants' },
-    { value: 'ACCESSORIES', label: 'Hardware, app-app-dev-btns & Trims' },
-  ];
-
-  readonly categoryFormOptions: DevAppSelectOption[] = [
-    { value: 'FABRIC_MILL', label: 'Textile Fabric Mill' },
-    { value: 'MANUFACTURER', label: 'Cut & Sew Assembly' },
-    { value: 'ACCESSORIES', label: 'Hardware / Trim Supply' },
-  ];
-
-  readonly supplierNodes = signal<SupplierNode[]>([
-    {
-      id: 'VND-702',
-      vendorName: 'Textile Horizon SARL',
-      category: 'FABRIC_MILL',
-      contactPerson: 'Marc Dubois',
-      email: 'm.dubois@textilehorizon.com',
-      phone: '+243 812 990 112',
-      leadTimeDays: 14,
-      status: 'ACTIVE',
-    },
-    {
-      id: 'VND-315',
-      vendorName: 'AfroFashion Manufacturing',
-      category: 'MANUFACTURER',
-      contactPerson: 'Faustin Kalombo',
-      email: 'procurement@afrofashion.cd',
-      phone: '+243 994 203 040',
-      leadTimeDays: 21,
-      status: 'ACTIVE',
-    },
-    {
-      id: 'VND-089',
-      vendorName: 'Ecoapp-app-dev-btn Premium Trims',
-      category: 'ACCESSORIES',
-      contactPerson: 'Sarah Jenkins',
-      email: 's.jenkins@ecotrims.com',
-      phone: '+1 555 019 2831',
-      leadTimeDays: 7,
-      status: 'UNDER_REVIEW',
-    },
-  ]);
+  readonly supplierNodes = computed<SupplierTableRow[]>(() =>
+    this.suppliers().map((supplier: GeneralModel.Supplier) => ({
+      id: supplier.id,
+      companyName: supplier.company_name || 'Unknown Supplier',
+      contactName: supplier.contact_name || 'Unassigned Contact',
+      email: supplier.email || '',
+      phone: supplier.phone || '',
+    })),
+  );
 
   constructor() {
     this.filterForm.valueChanges.subscribe(() => this.currentPage.set(1));
   }
 
   readonly totalSuppliers = computed(() => this.supplierNodes().length);
-  readonly reviewCount = computed(
-    () => this.supplierNodes().filter((s) => s.status === 'UNDER_REVIEW').length,
-  );
 
   readonly supplierStats = computed(() => [
     {
@@ -375,28 +284,19 @@ export class Suppliers {
       value: `${this.totalSuppliers()} Active Entities`,
       icon: 'fas fa-industry',
     },
-    {
-      title: 'Critical Pipeline Alerts',
-      value: `${this.reviewCount()} Nodes On Hold`,
-      icon: 'fas fa-shield-alt',
-      change: this.reviewCount() > 0 ? 'Review Reqd' : 'Clear',
-      isPositive: this.reviewCount() === 0,
-    },
   ]);
 
   readonly filteredSuppliers = computed(() => {
     const filters = this.filterFormValue();
     const query = (filters?.search || '').toLowerCase().trim();
-    const cat = filters?.category || 'ALL';
 
     return this.supplierNodes().filter((s) => {
       const matchSearch =
         !query ||
-        s.vendorName.toLowerCase().includes(query) ||
-        s.contactPerson.toLowerCase().includes(query) ||
+        s.companyName.toLowerCase().includes(query) ||
+        s.contactName.toLowerCase().includes(query) ||
         s.email.toLowerCase().includes(query);
-      const matchCat = cat === 'ALL' || s.category === cat;
-      return matchSearch && matchCat;
+      return matchSearch;
     });
   });
 
@@ -407,17 +307,10 @@ export class Suppliers {
   });
 
   onSupplierAction(event: { itemId: string; context: any }): void {
-    const target = event.context as SupplierNode;
+    const target = event.context as SupplierTableRow;
     if (!target) return;
 
-    this.supplierNodes.update((current) =>
-      current.map((s) => {
-        if (s.id === target.id) {
-          return { ...s, status: event.itemId === 'set_active' ? 'ACTIVE' : 'UNDER_REVIEW' };
-        }
-        return s;
-      }),
-    );
+    console.log(`Supplier action ${event.itemId} for`, target.companyName);
   }
 
   onPageSizeChange(newSize: number): void {
@@ -427,7 +320,7 @@ export class Suppliers {
 
   closeModal(): void {
     this.isModalOpen.set(false);
-    this.supplierForm.reset({ category: 'MANUFACTURER' });
+    this.supplierForm.reset();
   }
 
   commitSupplierNode(): void {
@@ -436,22 +329,43 @@ export class Suppliers {
     this.isSaving.set(true);
     const val = this.supplierForm.value;
 
-    setTimeout(() => {
-      const uniqueId = `VND-${Math.floor(100 + Math.random() * 900)}`;
-      const newNode: SupplierNode = {
-        id: uniqueId,
-        vendorName: val.vendorName!,
-        category: val.category as SupplierNode['category'],
-        contactPerson: val.contactPerson!,
+    this.supplierService
+      .createSupplier({
+        companyName: val.companyName!,
+        contactName: val.contactName!,
         email: val.email!,
         phone: val.phone!,
-        leadTimeDays: Number(val.leadTimeDays!),
-        status: 'ACTIVE',
-      };
+      })
+      .subscribe({
+        next: () => {
+          this.isSaving.set(false);
+          this.closeModal();
+          this.showToast('success', 'Supplier created', 'Supplier was saved successfully.');
+        },
+        error: (err) => {
+          console.error('Error creating supplier:', err);
+          this.isSaving.set(false);
+          this.showToast('error', 'Supplier not saved', 'Could not create the supplier. Please try again.');
+        },
+      });
+  }
 
-      this.supplierNodes.update((current) => [newNode, ...current]);
-      this.isSaving.set(false);
-      this.closeModal();
-    }, 1100);
+  private showToast(type: DevAppToastType, title: string, message: string): void {
+    const toast: ToastModel = {
+      id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      title,
+      message,
+    };
+
+    this.activeToasts.update((current) => [...current, toast]);
+
+    setTimeout(() => {
+      this.activeToasts.update((current) => current.filter((item) => item.id !== toast.id));
+    }, 3000);
+  }
+
+  removeToast(id: string): void {
+    this.activeToasts.update((current) => current.filter((toast) => toast.id !== id));
   }
 }

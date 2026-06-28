@@ -25,7 +25,7 @@ export namespace GeneralModel {
 
   export interface Supplier extends ID {
     company_name: string;
-    contactName: string;
+    contact_name: string;
     phone: string;
     email: string;
 

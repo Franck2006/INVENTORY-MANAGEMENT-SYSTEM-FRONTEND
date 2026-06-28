@@ -17,6 +17,7 @@ import { DevAppTablePagination } from '../../shared/ui/dev-app-table-pagination/
 import { DevAppModal } from '../../shared/ui/dev-app-modal/dev-app-modal';
 import { DevAppTable } from '../../shared/ui/dev-app-table/dev-app-table';
 import { DevAppTextarea } from '../../shared/ui/dev-app-textarea/dev-app-textarea';
+import { DevAppConfirmDialog } from '../../shared/ui/dev-app-confirm-dialog/dev-app-confirm-dialog';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import {
   DevAppActionMenu,
@@ -30,9 +31,10 @@ import { DevAppToastType, ToastModel } from '../../shared/ui/dev-app-toast/dev-a
 import { SupabaseService } from '../../core/supabase/supabasa.client';
 
 interface CatalogProduct {
-  id: string; // Changed from number to string to match GeneralModel.ID
+  id: string;
   name: string;
-  category: string; // Display name of the category
+  description?: string;
+  category: string;
   base_price: number;
   supplier: string;
   variantsCount: number;
@@ -56,7 +58,8 @@ interface CatalogProduct {
     DevAppTablePagination,
     DevAppModal,
     DevAppActionMenu,
-    DevAppTextarea, // Added DevAppTextarea to imports
+    DevAppTextarea,
+    DevAppConfirmDialog,
     Dashboard,
   ],
   template: `
@@ -74,7 +77,7 @@ interface CatalogProduct {
             variant="primary"
             size="md"
             class="w-full sm:w-auto"
-            (click)="isModalOpen.set(true)"
+            (click)="openCreateModal()"
           >
             <i class="fas fa-plus text-xs mr-2"></i>
             New Product Style
@@ -184,7 +187,7 @@ interface CatalogProduct {
 
         <app-dev-app-modal
           [isOpen]="isModalOpen()"
-          title="Create New Product Style"
+          [title]="modalTitle()"
           size="md"
           (close)="closeModal()"
         >
@@ -256,6 +259,17 @@ interface CatalogProduct {
             </app-app-dev-btn>
           </div>
         </app-dev-app-modal>
+
+        <app-dev-app-confirm-dialog
+          [isOpen]="isDeleteConfirmOpen()"
+          title="Delete product?"
+          message="Are you sure you want to delete this product style? This action cannot be undone."
+          variant="danger"
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+          (confirm)="confirmDeleteProduct()"
+          (cancel)="cancelDeleteProduct()"
+        ></app-dev-app-confirm-dialog>
       </div>
     </app-dashboard>
   `,
@@ -281,6 +295,9 @@ export class Products implements OnInit {
   // Core Tracking Data Hooks
   readonly isModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
+  readonly isDeleteConfirmOpen = signal<boolean>(false);
+  readonly editingProductId = signal<string | null>(null);
+  readonly pendingDeleteProductId = signal<string | null>(null);
   readonly activeToasts = signal<ToastModel[]>([]);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
@@ -310,7 +327,7 @@ export class Products implements OnInit {
   readonly productMenuActions: DevAppMenuItem[] = [
     { id: 'view_details', label: 'See Product Details', icon: 'fas fa-eye' },
     { id: 'edit_style', label: 'Modify Parameters', icon: 'fas fa-edit' },
-    { id: 'archive_product', label: 'Archive Record', icon: 'fas fa-archive', variant: 'danger' },
+    { id: 'archive_product', label: 'Delete', icon: 'fas fa-trash-alt', variant: 'danger' },
   ];
 
   readonly filterCategories = computed(() => {
@@ -338,17 +355,24 @@ export class Products implements OnInit {
   });
 
   readonly originalProducts = computed(() => {
+    const variantList = this.realtimeService.product_variants();
+
     return this.productsFromRealtime().map((p) => {
-      // Safely access nested properties and provide fallbacks
-      // The index will be added dynamically during pagination for display purposes
+      const matchingVariants = variantList.filter((variant) => variant.product_id === p.id);
+      const totalStock = matchingVariants.reduce(
+        (sum, variant) => sum + (Number(variant.low_stock_threshold) || 0),
+        0,
+      );
+
       return {
         id: p.id!,
         name: p.name,
-        category: p.categories?.name || 'Uncategorized', // Access nested category name safely
-        base_price: parseFloat(p.base_price?.toString() || '0'), // Use p.basePrice from data, parse to float
-        supplier: p.suppliers?.company_name || 'Unknown Supplier', // Access nested supplier name safely
-        variantsCount: 0, // Placeholder, assuming this would be calculated or fetched
-        totalStock: 0, // Placeholder, assuming this would be calculated or fetched
+        description: p.description || '',
+        category: p.categories?.name || 'Uncategorized',
+        base_price: parseFloat(p.base_price?.toString() || '0'),
+        supplier: p.suppliers?.company_name || 'Unknown Supplier',
+        variantsCount: matchingVariants.length,
+        totalStock,
         createdAt: p.created_at ? new Date(p.created_at).toLocaleDateString() : '',
       };
     });
@@ -363,10 +387,11 @@ export class Products implements OnInit {
         this.navigateToDetail(activeProduct.id);
         break;
       case 'edit_style':
-        console.log(`Open edit mode parameter array tracking context for ID: ${activeProduct.id}`);
+        this.openEditModal(activeProduct);
         break;
       case 'archive_product':
-        console.log(`Marking style blueprint row target as deactivated: ${activeProduct.id}`);
+        this.pendingDeleteProductId.set(activeProduct.id);
+        this.isDeleteConfirmOpen.set(true);
         break;
     }
   }
@@ -418,51 +443,116 @@ export class Products implements OnInit {
     // Route matching your dynamic parameter mapping structure array lines
     this.router.navigate(['/products', productId]);
   }
+  readonly modalTitle = computed(() =>
+    this.editingProductId() ? 'Update Product Style' : 'Create New Product Style',
+  );
+
+  openCreateModal(): void {
+    this.editingProductId.set(null);
+    this.productForm.reset({
+      name: '',
+      description: '',
+      categoryId: '',
+      base_price: 0,
+      supplierId: '',
+    });
+    this.isModalOpen.set(true);
+  }
+
+  openEditModal(product: CatalogProduct): void {
+    const existingProduct = this.productsFromRealtime().find((item) => item.id === product.id);
+
+    this.editingProductId.set(product.id);
+    this.productForm.patchValue({
+      name: product.name,
+      description: existingProduct?.description ?? product.description ?? '',
+      categoryId:
+        existingProduct?.category_id ??
+        (this.categoriesFromRealtime().find((cat) => cat.name === product.category)?.id || ''),
+      base_price: product.base_price,
+      supplierId:
+        existingProduct?.supplier_id ??
+        (this.suppliersFromRealtime().find((supplier) => supplier.company_name === product.supplier)?.id || ''),
+    });
+    this.isModalOpen.set(true);
+  }
+
   closeModal(): void {
     this.isModalOpen.set(false);
+    this.editingProductId.set(null);
     this.productForm.reset();
   }
 
   saveProductStyle(): void {
     if (this.productForm.invalid) return;
-    this.productForm.markAllAsTouched(); // Mark all fields as touched to show validation errors
+    this.productForm.markAllAsTouched();
 
-    this.isSaving.set(true); // Start loading state
+    this.isSaving.set(true);
 
     const { name, description, base_price, categoryId, supplierId } = this.productForm.value;
+    const payload = {
+      ...(this.editingProductId() ? { id: this.editingProductId() } : {}),
+      name: name!,
+      description: description!,
+      basePrice: Number(base_price ?? 0),
+      categoryId: categoryId!,
+      supplierId: supplierId!,
+    };
 
-    this.productService
-      .createProduct({
-        name: name!,
-        description: description!,
-        basePrice: base_price!,
-        categoryId: categoryId!,
-        supplierId: supplierId!,
-      })
-      .subscribe({
-        next: () => {
-          this.triggerNotification(
-            'success',
-            'Product Created',
-            'New product style has been successfully added.',
-          );
-          this.productForm.reset(); // Reset form on success
-          this.closeModal();
-          this.isSaving.set(false); // Close modal on success
-        },
-        error: (err) => {
-          console.error('Error creating product:', err);
-          this.triggerNotification(
-            'error',
-            'Creation Failed',
-            'Failed to create product style. Please try again.',
-          );
-          this.isSaving.set(false);
-        },
-        complete: () => {
-          this.isSaving.set(false); // End loading state regardless of success or error
-        },
-      });
+    const request$ = this.editingProductId()
+      ? this.productService.updateProduct(payload, this.editingProductId()!)
+      : this.productService.createProduct(payload);
+
+    request$.subscribe({
+      next: () => {
+        this.triggerNotification(
+          'success',
+          this.editingProductId() ? 'Product Updated' : 'Product Created',
+          this.editingProductId()
+            ? 'The product style has been updated.'
+            : 'New product style has been successfully added.',
+        );
+        this.closeModal();
+      },
+      error: (err) => {
+        console.error('Error saving product:', err);
+        this.triggerNotification(
+          'error',
+          this.editingProductId() ? 'Update Failed' : 'Creation Failed',
+          this.editingProductId()
+            ? 'Failed to update product style. Please try again.'
+            : 'Failed to create product style. Please try again.',
+        );
+      },
+      complete: () => {
+        this.isSaving.set(false);
+      },
+    });
+  }
+
+  confirmDeleteProduct(): void {
+    const productId = this.pendingDeleteProductId();
+    if (!productId) {
+      this.isDeleteConfirmOpen.set(false);
+      return;
+    }
+
+    this.productService.deleteProduct(productId).subscribe({
+      next: () => {
+        this.triggerNotification('success', 'Product Deleted', 'The product style was removed.');
+        this.pendingDeleteProductId.set(null);
+        this.isDeleteConfirmOpen.set(false);
+      },
+      error: (err) => {
+        console.error('Error deleting product:', err);
+        this.triggerNotification('error', 'Delete Failed', 'Failed to delete product style.');
+      },
+    });
+  }
+
+  cancelDeleteProduct(): void {
+    this.pendingDeleteProductId.set(null);
+    this.isDeleteConfirmOpen.set(false);
   }
 
   triggerNotification(type: DevAppToastType, title: string, message: string) {

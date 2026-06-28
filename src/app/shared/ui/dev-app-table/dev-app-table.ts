@@ -24,7 +24,7 @@ import { Component, contentChild, input, TemplateRef } from '@angular/core';
         </thead>
 
         <tbody class="divide-y divide-[#3A506B]/10 bg-transparent">
-          @for (row of data(); track row; let lines = $index) {
+          @for (row of data(); track row.orderItemId; let lines = $index) {
             <tr
               class="transition-colors duration-150 ease-in-out"
               [class.bg-[#1C2541]/40]="lines % 2 === 0"

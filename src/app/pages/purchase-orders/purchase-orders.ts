@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
@@ -16,7 +16,12 @@ import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { RealtimeService } from '../../core/realtime/reatime.service';
 import { PurchaseOrderService } from '../../services/purchase-order/purchase-order.service';
-import { DevAppToast, DevAppToastType, ToastModel } from '../../shared/ui/dev-app-toast/dev-app-toast';
+import {
+  DevAppToast,
+  DevAppToastType,
+  ToastModel,
+} from '../../shared/ui/dev-app-toast/dev-app-toast';
+import { DevAppConfirmDialog } from '../../shared/ui/dev-app-confirm-dialog/dev-app-confirm-dialog';
 import { GeneralModel } from '../../models/general-model.type';
 
 interface PurchaseOrder {
@@ -42,7 +47,7 @@ interface PurchaseOrderRow {
   expected_delivery: Date | string | null;
   status: PurchaseOrder['status'];
   totalItems: number;
-  purchaseOrderId?: string
+  purchaseOrderId?: string;
 }
 
 @Component({
@@ -63,6 +68,7 @@ interface PurchaseOrderRow {
     AppDevBtn,
     Dashboard,
     DevAppToast,
+    DevAppConfirmDialog,
   ],
   template: `
     <app-dashboard>
@@ -114,8 +120,8 @@ interface PurchaseOrderRow {
           <div class="w-full overflow-x-auto block whitespace-nowrap">
             <app-dev-app-table
               [headers]="[
-               '#',
-               'Supplier Name',
+                '#',
+                'Supplier Name',
                 'Supplier Email',
                 'quantity ordered',
                 'quantity received',
@@ -126,9 +132,8 @@ interface PurchaseOrderRow {
                 'Pipeline Status',
                 'Actions',
               ]"
-              [data]="paginatedOrders()"
+              [data]="tableData()"
             >
-           
               <ng-template #rowTemplate let-orderItem let-index="index">
                 <td class="px-4 md:px-6 py-4 font-mono font-bold text-xs text-blue-400">
                   #{{ index + 1 }}
@@ -136,27 +141,27 @@ interface PurchaseOrderRow {
                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
                   {{ orderItem.supplierName }}
                 </td>
-                 <td class="px-4 md:px-6 py-4 text-slate-200 ">
+                <td class="px-4 md:px-6 py-4 text-slate-200 ">
                   {{ orderItem.supplierEmail }}
                 </td>
-                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
+                <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
                   {{ orderItem.quantity_ordered }}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-slate-200 font-semibold">
                   {{ orderItem.quantity_received }}
                 </td>
-                
+
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-400">
-                  {{ (orderItem.orderedAt | date :'mediumDate')|| "time"}}
+                  {{ (orderItem.orderedAt | date: 'mediumDate') || 'time' }}
                 </td>
                 <td class="px-4 md:px-6 py-4 text-center font-mono font-medium text-slate-400">
-                  {{ orderItem.productName  }} units
+                  {{ orderItem.productName }} units
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono font-black text-slate-100 text-right">
                   \${{ orderItem.totalCost.toFixed(2) }}
                 </td>
                 <td class="px-4 md:px-6 py-4 font-mono text-[11px] text-slate-500">
-                  {{ (orderItem.expected_delivery | date :'mediumDate') ?? 'insert delivery date' }}
+                  {{ (orderItem.expected_delivery | date: 'mediumDate') ?? 'insert delivery date' }}
                 </td>
                 <td class="px-4 md:px-6 py-4">
                   @switch (orderItem.status) {
@@ -216,7 +221,6 @@ interface PurchaseOrderRow {
           (close)="closeModal()"
         >
           <form [formGroup]="orderForm" class="space-y-5 text-left">
-            
             <div>
               <app-dev-app-select
                 formControlName="supplierId"
@@ -234,7 +238,7 @@ interface PurchaseOrderRow {
                 label="Product Variant *"
               ></app-dev-app-select>
             </div>
-            
+
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <app-dev-app-input
                 formControlName="totalItems"
@@ -252,7 +256,9 @@ interface PurchaseOrderRow {
             </div>
 
             <div class="space-y-2">
-              <label class="block text-sm font-medium text-slate-200">Target Scheduled Delivery Date *</label>
+              <label class="block text-sm font-medium text-slate-200"
+                >Target Scheduled Delivery Date *</label
+              >
               <input
                 formControlName="expectedDelivery"
                 type="date"
@@ -279,7 +285,20 @@ interface PurchaseOrderRow {
           </div>
         </app-dev-app-modal>
 
-        <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-3 w-[min(90vw,24rem)] pointer-events-none">
+        <app-dev-app-confirm-dialog
+          [isOpen]="isDeleteConfirmOpen()"
+          title="Void purchase order?"
+          message="Are you sure you want to void this purchase order? This action cannot be undone."
+          variant="danger"
+          confirmLabel="Void"
+          cancelLabel="Cancel"
+          (confirm)="confirmDeleteOrder()"
+          (cancel)="cancelDeleteOrder()"
+        ></app-dev-app-confirm-dialog>
+
+        <div
+          class="fixed bottom-4 right-4 z-50 flex flex-col gap-3 w-[min(90vw,24rem)] pointer-events-none"
+        >
           @for (toast of activeToasts(); track toast.id) {
             <div class="pointer-events-auto">
               <app-dev-app-toast
@@ -295,11 +314,9 @@ interface PurchaseOrderRow {
         </div>
       </div>
     </app-dashboard>
-
-   
   `,
 })
-export class PurchaseOrders {
+export class PurchaseOrders implements OnInit {
   constructor() {
     this.filterForm.valueChanges.subscribe((value) => {
       this.filters.set({
@@ -309,17 +326,22 @@ export class PurchaseOrders {
     });
   }
 
+  ngOnInit(): void {
+    console.log(this.purchaseOrderItems())
+  }
+
   private readonly formBuilder = inject(FormBuilder);
   private readonly realtimeService = inject(RealtimeService);
   private readonly purchaseOrderService = inject(PurchaseOrderService);
 
   private readonly realtimeSuppliers = this.realtimeService.suppliers;
-  private readonly realtimeProductItem = this.realtimeService.purchase_order_items;
-  private readonly realtimeOrders = this.realtimeService.purchase_orders
+  private readonly realtimePurchaseOrderItems = this.realtimeService.purchase_order_items;
   private readonly realtimeProductViariants = this.realtimeService.product_variants;
 
   readonly isOrderModalOpen = signal<boolean>(false);
   readonly isSaving = signal<boolean>(false);
+  readonly isDeleteConfirmOpen = signal<boolean>(false);
+  readonly pendingDeleteOrderId = signal<string | null>(null);
   readonly activeToasts = signal<ToastModel[]>([]);
   readonly currentPage = signal<number>(1);
   readonly pageSize = signal<number>(5);
@@ -374,99 +396,53 @@ export class PurchaseOrders {
     });
   });
 
-
-
-  readonly orders = signal<PurchaseOrder[]>([
-    {
-      id: 'PO-2026-001',
-      vendorName: 'Textile Horizon SARL',
-      orderDate: '2026-06-01',
-      totalCost: 1450.0,
-      totalItems: 120,
-      status: 'RECEIVED',
-      expectedDelivery: '2026-06-12',
-    },
-    {
-      id: 'PO-2026-002',
-      vendorName: 'AfroFashion Manufacturing',
-      orderDate: '2026-06-15',
-      totalCost: 3200.0,
-      totalItems: 250,
-      status: 'PENDING',
-      expectedDelivery: '2026-06-25',
-    },
-    {
-      id: 'PO-2026-003',
-      vendorName: 'Textile Horizon SARL',
-      orderDate: '2026-06-19',
-      totalCost: 890.0,
-      totalItems: 60,
-      status: 'DRAFT',
-      expectedDelivery: '2026-07-02',
-    },
-  ]);
-
   readonly purchaseOrderItems = computed<PurchaseOrderRow[]>(() => {
-    return this.realtimeProductItem().map((po) => {
+    return this.realtimePurchaseOrderItems().map((po) => {
       const status = (po.purchase_orders?.status ?? 'DRAFT') as PurchaseOrder['status'];
+      const supplierName =
+        po.purchase_orders?.supplier?.company_name ?? po.purchase_orders?.vendor_name ?? '';
+      const supplierEmail =
+        po.purchase_orders?.supplier?.email ?? po.product_variants?.products?.suppliers?.email ?? '';
+      const productName =
+        po.product_variants?.products?.name ?? po.product_variants?.sku ?? 'Unknown Product';
+      const orderDate =
+        po.purchase_orders?.orderAt ?? po.purchase_orders?.order_date ?? null;
 
       return {
         orderItemId: po.id,
-        vendorName: po.purchase_orders?.vendor_name ?? '',
-        supplierName: po.purchase_orders?.vendor_name ?? '',
-        supplierEmail: po.product_variants?.products?.suppliers?.email ?? '',
+        vendorName: po.purchase_orders?.vendor_name ?? supplierName,
+        supplierName,
+        supplierEmail,
         quantity_ordered: po.quantity_ordered ?? 0,
         quantity_received: po.quantity_received ?? 0,
-        orderedAt: po.purchase_orders?.orderAt ?? null,
-        productName: po.product_variants?.products?.name ?? '',
+        orderedAt: orderDate,
+        productName,
         totalCost: po.purchase_orders?.total_cost ?? 0,
         expected_delivery: po.purchase_orders?.expected_delivery ?? null,
         status,
         totalItems: po.purchase_orders?.totalItems ?? 0,
-
-        // these are for the IDs
         purchaseOrderId: po.purchase_order_id ?? '',
-
       };
     });
   });
 
-  readonly displayedOrders = computed<PurchaseOrderRow[]>(() => {
-    const realtimeRows = this.purchaseOrderItems();
-    if (!realtimeRows.length) {
-      return this.orders().map((order) => this.mapLocalOrderToRow(order));
-    }
-
-    const merged = [...realtimeRows];
-    this.orders().forEach((order) => {
-      const row = this.mapLocalOrderToRow(order);
-      if (!merged.some((item) => item.orderItemId === row.orderItemId)) {
-        merged.push(row);
-      }
-    });
-
-    return merged;
-  });
-
-  readonly filteredOrders = computed(() => {
+  readonly filteredOrders = computed<PurchaseOrderRow[]>(() => {
     const query = this.filters().search.toLowerCase().trim();
     const stat = this.filters().status || 'ALL';
 
-    return this.displayedOrders().filter((order) => {
+    return this.purchaseOrderItems().filter((order) => {
       const matchesStatus = stat === 'ALL' || order.status === stat;
-      const matchesQuery =
-        !query || this.buildSearchText(order).includes(query);
-
+      const matchesQuery = !query || this.buildSearchText(order).includes(query);
       return matchesStatus && matchesQuery;
     });
   });
 
-  readonly totalItems = computed(() => this.filteredOrders().length);
-
-  readonly paginatedOrders = computed(() => {
+  readonly tableData = computed<PurchaseOrderRow[]>(() => {
     const start = (this.currentPage() - 1) * this.pageSize();
     return this.filteredOrders().slice(start, start + this.pageSize());
   });
+
+  readonly totalItems = computed(() => this.filteredOrders().length);
 
   private mapLocalOrderToRow(order: PurchaseOrder): PurchaseOrderRow {
     return {
@@ -482,8 +458,7 @@ export class PurchaseOrders {
       expected_delivery: order.expectedDelivery,
       status: order.status,
       totalItems: order.totalItems,
-      purchaseOrderId: ""
-
+      purchaseOrderId: '',
     };
   }
 
@@ -504,23 +479,37 @@ export class PurchaseOrders {
 
   onOrderAction(event: { itemId: string; context: any }): void {
     const target = event.context as PurchaseOrderRow;
-    const status = this.mapOrderActionToStatus(event.itemId);
+    if (!target) return;
 
-    if (!target || !status) return;
+    if (event.itemId === 'cancel_order') {
+      this.pendingDeleteOrderId.set(target.purchaseOrderId ?? null);
+      this.isDeleteConfirmOpen.set(true);
+      return;
+    }
+
+    const status = this.mapOrderActionToStatus(event.itemId);
+    if (!status) return;
 
     const purchaseOrderId = target.purchaseOrderId;
     if (!purchaseOrderId) return;
 
     this.orderActionLoading.set(true);
     this.purchaseOrderService.updateOrderService({ status }, purchaseOrderId).subscribe({
-      next: (data) => {
-        console.log(data);
-        this.triggerNotification('success', 'Purchase order updated', 'The purchase order status was updated successfully.');
+      next: () => {
+        this.triggerNotification(
+          'success',
+          'Purchase order updated',
+          'The purchase order status was updated successfully.',
+        );
         this.orderActionLoading.set(false);
       },
       error: (e) => {
         console.log(e);
-        this.triggerNotification('error', 'Update failed', 'The purchase order status could not be updated. Please try again.');
+        this.triggerNotification(
+          'error',
+          'Update failed',
+          'The purchase order status could not be updated. Please try again.',
+        );
         this.orderActionLoading.set(false);
       },
     });
@@ -542,6 +531,31 @@ export class PurchaseOrders {
   onPageSizeChange(newSize: number): void {
     this.pageSize.set(newSize);
     this.currentPage.set(1);
+  }
+
+  confirmDeleteOrder(): void {
+    const orderId = this.pendingDeleteOrderId();
+    if (!orderId) {
+      this.isDeleteConfirmOpen.set(false);
+      return;
+    }
+
+    this.purchaseOrderService.deleteOrderService(orderId).subscribe({
+      next: () => {
+        this.triggerNotification('success', 'Purchase order voided', 'The purchase order was removed.');
+        this.pendingDeleteOrderId.set(null);
+        this.isDeleteConfirmOpen.set(false);
+      },
+      error: (e) => {
+        console.log(e);
+        this.triggerNotification('error', 'Delete failed', 'The purchase order could not be deleted.');
+      },
+    });
+  }
+
+  cancelDeleteOrder(): void {
+    this.pendingDeleteOrderId.set(null);
+    this.isDeleteConfirmOpen.set(false);
   }
 
   closeModal(): void {
@@ -596,12 +610,20 @@ export class PurchaseOrders {
 
     this.purchaseOrderService.createOrderService(payload).subscribe({
       next: () => {
-        this.triggerNotification('success', 'Purchase order created', 'The purchase order was submitted successfully.');
+        this.triggerNotification(
+          'success',
+          'Purchase order created',
+          'The purchase order was submitted successfully.',
+        );
         this.isSaving.set(false);
         this.closeModal();
       },
       error: () => {
-        this.triggerNotification('error', 'Submission failed', 'The purchase order could not be created. Please try again.');
+        this.triggerNotification(
+          'error',
+          'Submission failed',
+          'The purchase order could not be created. Please try again.',
+        );
         this.isSaving.set(false);
       },
     });

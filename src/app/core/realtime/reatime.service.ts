@@ -12,6 +12,8 @@ export class RealtimeService implements OnDestroy {
   private productsRealtimeChannel!: RealtimeChannel;
   private categoryRealtimeChannel!: RealtimeChannel;
   private supplierRealtimeChannel!: RealtimeChannel;
+  private purchaseOrdersRealtimeChannel!: RealtimeChannel;
+  private purchaseOrderItemsRealtimeChannel!: RealtimeChannel;
 
   public readonly products = signal<GeneralModel.Product[]>([]);
   public readonly suppliers = signal<GeneralModel.Supplier[]>([]);
@@ -25,7 +27,6 @@ export class RealtimeService implements OnDestroy {
   public readonly purchase_orders = signal<GeneralModel.PurchaseOrder[]>([]);
   public readonly purchase_order_items = signal<GeneralModel.PurchaseOrderItem[]>([]);
 
-
   constructor() {
     this.initRealtimeSync();
   }
@@ -38,6 +39,8 @@ export class RealtimeService implements OnDestroy {
     this.setupProductRealtime();
     this.setupCategoryRealtime();
     this.setupSupplierRealtime();
+    this.setupPurchaseOrderRealtime();
+    this.setupPurchaseOrderItemRealtime();
 
     console.log('Realtime synchronization initialized with Supabase.');
   }
@@ -91,7 +94,10 @@ export class RealtimeService implements OnDestroy {
     // Fetch purchase order
     const { data: purchaseOrder, error: purchaseOrderError } = (await this.supabase
       .from('purchase_orders')
-      .select('*,purchase_order_items(*)')) as { data: GeneralModel.PurchaseOrder[] | null; error: any };
+      .select('*,purchase_order_items(*)')) as {
+      data: GeneralModel.PurchaseOrder[] | null;
+      error: any;
+    };
 
     if (purchaseOrderError) {
       console.error('Error fetching initial suppliers:', purchaseOrderError);
@@ -102,7 +108,10 @@ export class RealtimeService implements OnDestroy {
     // Fetch purchase order
     const { data: purchaseOrderItems, error: purchaseOrderItemsError } = (await this.supabase
       .from('purchase_order_items')
-      .select('*,purchase_orders(*), product_variants(*,products(*,suppliers(*)))')) as { data: GeneralModel.PurchaseOrderItem[] | null; error: any };
+      .select('*,purchase_orders(*), product_variants(*,products(*,suppliers(*)))')) as {
+      data: GeneralModel.PurchaseOrderItem[] | null;
+      error: any;
+    };
     // .order('created_at', { ascending: false })) //
 
     if (purchaseOrderItemsError) {
@@ -112,16 +121,16 @@ export class RealtimeService implements OnDestroy {
     }
 
     console.log('Initial data fetched from Supabase.');
-    console.log("  ")
-    console.log("  ")
+    console.log('  ');
+    console.log('  ');
     console.log('Initial products:', this.products());
     console.log('Initial product_variant:', this.product_variants());
     console.log('Initial categories:', this.category());
     console.log('Initial suppliers:', this.suppliers());
     console.log('Initial purchase_order:', this.purchase_orders());
     console.log('Initial purchase_order_items:', this.purchase_order_items());
-    console.log("  ")
-    console.log("  ")
+    console.log('  ');
+    console.log('  ');
   }
 
   private setupProductRealtime() {
@@ -169,6 +178,38 @@ export class RealtimeService implements OnDestroy {
       .subscribe((status, err) => {
         console.log('Supplier Realtime Status:', status);
         if (err) console.error('Supplier Realtime Error:', err);
+      });
+  }
+
+  private setupPurchaseOrderRealtime() {
+    this.purchaseOrdersRealtimeChannel = this.supabase
+      .channel('purchase-orders-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'purchase_orders' },
+        async (payload: RealtimePostgresChangesPayload<GeneralModel.PurchaseOrder>) => {
+          await this.handlePurchaseOrderEvent(payload);
+        },
+      )
+      .subscribe((status, err) => {
+        console.log('Purchase Order Realtime Status:', status);
+        if (err) console.error('Purchase Order Realtime Error:', err);
+      });
+  }
+
+  private setupPurchaseOrderItemRealtime() {
+    this.purchaseOrderItemsRealtimeChannel = this.supabase
+      .channel('purchase-order-items-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'purchase_order_items' },
+        async (payload: RealtimePostgresChangesPayload<GeneralModel.PurchaseOrderItem>) => {
+          await this.handlePurchaseOrderItemEvent(payload);
+        },
+      )
+      .subscribe((status, err) => {
+        console.log('Purchase Order Item Realtime Status:', status);
+        if (err) console.error('Purchase Order Item Realtime Error:', err);
       });
   }
 
@@ -236,6 +277,124 @@ export class RealtimeService implements OnDestroy {
     });
   }
 
+  private async handlePurchaseOrderEvent(
+    payload: RealtimePostgresChangesPayload<GeneralModel.PurchaseOrder>,
+  ) {
+    const { eventType } = payload;
+    let updatedPurchaseOrder: GeneralModel.PurchaseOrder | undefined;
+
+    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+      const { data, error } = await this.supabase
+        .from('purchase_orders')
+        .select('*, purchase_order_items(*)')
+        .eq('id', payload.new.id)
+        .single();
+
+      if (error) {
+        console.error('Error re-fetching purchase order after realtime event:', error);
+        return;
+      }
+
+      updatedPurchaseOrder = data as GeneralModel.PurchaseOrder;
+    }
+
+    this.purchase_orders.update((currentPurchaseOrders) => {
+      if (eventType === 'INSERT') {
+        return [...currentPurchaseOrders, updatedPurchaseOrder!];
+      } else if (eventType === 'UPDATE') {
+        return currentPurchaseOrders.map((purchaseOrder) =>
+          purchaseOrder.id === updatedPurchaseOrder!.id ? updatedPurchaseOrder! : purchaseOrder,
+        );
+      } else if (eventType === 'DELETE') {
+        return currentPurchaseOrders.filter((purchaseOrder) => purchaseOrder.id !== payload.old.id);
+      }
+
+      return currentPurchaseOrders;
+    });
+
+    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+      await this.syncPurchaseOrderItemRows(payload.new.id, updatedPurchaseOrder);
+    } else if (eventType === 'DELETE') {
+      this.purchase_order_items.update((currentPurchaseOrderItems) =>
+        currentPurchaseOrderItems.filter(
+          (purchaseOrderItem) => purchaseOrderItem.purchase_order_id !== payload.old.id,
+        ),
+      );
+    }
+  }
+
+  private async syncPurchaseOrderItemRows(
+    purchaseOrderId: string,
+    purchaseOrder?: GeneralModel.PurchaseOrder,
+  ) {
+    const { data, error } = await this.supabase
+      .from('purchase_order_items')
+      .select('*, purchase_orders(*), product_variants(*, products(*, suppliers(*)))')
+      .eq('purchase_order_id', purchaseOrderId);
+
+    if (error) {
+      console.error(
+        'Error re-fetching purchase order item rows after order realtime event:',
+        error,
+      );
+      return;
+    }
+
+    const refreshedItems = ((data as GeneralModel.PurchaseOrderItem[] | null) || []).map(
+      (item) => ({
+        ...item,
+        purchase_orders: item.purchase_orders ?? purchaseOrder,
+      }),
+    );
+
+    this.purchase_order_items.update((currentPurchaseOrderItems) => [
+      ...currentPurchaseOrderItems.filter(
+        (purchaseOrderItem) => purchaseOrderItem.purchase_order_id !== purchaseOrderId,
+      ),
+      ...refreshedItems,
+    ]);
+  }
+
+  private async handlePurchaseOrderItemEvent(
+    payload: RealtimePostgresChangesPayload<GeneralModel.PurchaseOrderItem>,
+  ) {
+    const { eventType } = payload;
+    let updatedPurchaseOrderItem: GeneralModel.PurchaseOrderItem | undefined;
+
+    if (eventType === 'INSERT' || eventType === 'UPDATE') {
+      const { data, error } = await this.supabase
+        .from('purchase_order_items')
+        .select('*, purchase_orders(*), product_variants(*, products(*, suppliers(*)))')
+        .eq('id', payload.new.id)
+        .single();
+
+      if (error) {
+        console.error('Error re-fetching purchase order item after realtime event:', error);
+        return;
+      }
+
+      updatedPurchaseOrderItem = data as GeneralModel.PurchaseOrderItem;
+    }
+
+    this.purchase_order_items.update((currentPurchaseOrderItems) => {
+      if (eventType === 'INSERT') {
+        return [...currentPurchaseOrderItems, updatedPurchaseOrderItem!];
+      } else if (eventType === 'UPDATE') {
+        return currentPurchaseOrderItems.map((purchaseOrderItem) =>
+          purchaseOrderItem.id === updatedPurchaseOrderItem!.id
+            ? updatedPurchaseOrderItem!
+            : purchaseOrderItem,
+        );
+      } else if (eventType === 'DELETE') {
+        return currentPurchaseOrderItems.filter(
+          (purchaseOrderItem) => purchaseOrderItem.id !== payload.old.id,
+        );
+      }
+
+      return currentPurchaseOrderItems;
+    });
+  }
+
   async ngOnDestroy() {
     if (this.productsRealtimeChannel) {
       await this.supabase.removeChannel(this.productsRealtimeChannel);
@@ -245,6 +404,12 @@ export class RealtimeService implements OnDestroy {
     }
     if (this.supplierRealtimeChannel) {
       await this.supabase.removeChannel(this.supplierRealtimeChannel);
+    }
+    if (this.purchaseOrdersRealtimeChannel) {
+      await this.supabase.removeChannel(this.purchaseOrdersRealtimeChannel);
+    }
+    if (this.purchaseOrderItemsRealtimeChannel) {
+      await this.supabase.removeChannel(this.purchaseOrderItemsRealtimeChannel);
     }
   }
 }

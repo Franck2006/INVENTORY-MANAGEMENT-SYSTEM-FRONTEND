@@ -1,42 +1,31 @@
-import { Component, computed, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   DevAppActionMenu,
   DevAppMenuItem,
 } from '../../shared/ui/dev-app-action-menu/dev-app-action-menu';
 import { CommonModule } from '@angular/common';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
 import { DevAppTable } from '../../shared/ui/dev-app-table/dev-app-table';
+import { DevAppModal } from '../../shared/ui/dev-app-modal/dev-app-modal';
+import { DevAppInput } from '../../shared/ui/dev-app-input/dev-app-input';
+import { DevAppSelect, DevAppSelectOption } from '../../shared/ui/dev-app-select/dev-app-select';
+import { DevAppConfirmDialog } from '../../shared/ui/dev-app-confirm-dialog/dev-app-confirm-dialog';
 import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { Subscription } from 'rxjs';
 import { AppDevBtn } from '../../shared/ui/app-dev-btn/app-dev-btn';
 import { RealtimeService } from '../../core/realtime/reatime.service';
-
-interface ProductVariant {
-  sku: string;
-  size: string;
-  color: string;
-  stock: number;
-  additionalPrice: number; // Modifiers over base price
-}
-
-interface DetailedProduct {
-  id: number;
-  name: string;
-  category: string;
-  basePrice: number;
-  supplier: string;
-  description: string;
-  createdAt: string;
-  variants: ProductVariant[];
-}
+import { GeneralModel } from '../../models/general-model.type';
+import { ProductVariantService, type ProductVariant as ProductVariantPayload } from '../../services/product-variants/product-variant.service';
 
 @Component({
   selector: 'app-product-detail',
   standalone: true,
   imports: [
     CommonModule,
+    ReactiveFormsModule,
     RouterModule,
     DevAppCard,
     DevAppBadge,
@@ -44,6 +33,10 @@ interface DetailedProduct {
     DevAppActionMenu,
     Dashboard,
     AppDevBtn,
+    DevAppModal,
+    DevAppInput,
+    DevAppSelect,
+    DevAppConfirmDialog,
   ],
   template: `
     <app-dashboard>
@@ -102,7 +95,7 @@ interface DetailedProduct {
                       class="text-[10px] uppercase font-bold tracking-wider text-slate-500 block"
                       >Vendor Supplier Link</span
                     >
-                    <p class="text-slate-200 font-medium mt-0.5">{{ choosenProduct()!.suppliers!.contactName }}</p>
+                    <p class="text-slate-200 font-medium mt-0.5">{{ choosenProduct()!.suppliers!.contact_name }}</p>
                   </div>
 
                   <div class="pb-3 border-b border-[#3A506B]/15">
@@ -138,7 +131,12 @@ interface DetailedProduct {
                 cardSubtitle="Physical warehouse variations bound to coordinates"
               >
                 <div card-header-actions class="w-full sm:w-auto">
-                  <app-app-dev-btn variant="primary" size="sm" class="w-full sm:w-auto">
+                  <app-app-dev-btn
+                    variant="primary"
+                    size="sm"
+                    class="w-full sm:w-auto"
+                    (click)="openVariantModal()"
+                  >
                     <i class="fas fa-plus text-xs mr-1.5"></i> Add Variant Coordinate
                   </app-app-dev-btn>
                 </div>
@@ -177,17 +175,17 @@ interface DetailedProduct {
                       </td>
                       <td class="px-4 md:px-6 py-4">
                         <span
-                          [class.text-red-400]="variant.stock === 0"
-                          [class.text-slate-200]="variant.stock > 0"
+                          [class.text-red-400]="variant.lowStockThreshold === 0"
+                          [class.text-slate-200]="variant.lowStockThreshold > 0"
                           class="font-bold font-mono text-xs"
                         >
-                          {{ variant.low_stock_threshold}} units
+                          {{ variant.lowStockThreshold }} units
                         </span>
                       </td>
                       <td
                         class="px-4 md:px-6 py-4 font-mono font-extrabold text-slate-200 text-right"
                       >
-                        \${{ (choosenProduct()!.base_price * variant!.low_stock_threshold).toFixed(2) }}
+                        \${{ (choosenProduct()!.base_price * variant!.lowStockThreshold).toFixed(2) }}
                       </td>
                       <td class="px-4 md:px-6 py-4 text-center">
                         <app-dev-app-action-menu
@@ -208,35 +206,135 @@ interface DetailedProduct {
           </div>
         }
       </div>
+
+      <app-dev-app-modal
+        [isOpen]="isVariantModalOpen()"
+        [title]="modalTitle()"
+        size="md"
+        (close)="closeVariantModal()"
+      >
+        <form [formGroup]="variantForm" class="space-y-4 text-left">
+          <div>
+            <app-dev-app-input
+              formControlName="sku"
+              label="SKU *"
+              placeholder="e.g. SKU-001"
+            ></app-dev-app-input>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <app-dev-app-input
+              formControlName="size"
+              label="Size *"
+              placeholder="e.g. M"
+            ></app-dev-app-input>
+
+            <app-dev-app-select
+              formControlName="color"
+              label="Color *"
+              [options]="colorOptions"
+              [withSearch]="true"
+            ></app-dev-app-select>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <app-dev-app-input
+              formControlName="price"
+              label="Price *"
+              placeholder="e.g. 120"
+              type="number"
+            ></app-dev-app-input>
+
+            <app-dev-app-input
+              formControlName="lowStockThreshold"
+              label="Low Stock Threshold *"
+              placeholder="e.g. 5"
+              type="number"
+            ></app-dev-app-input>
+          </div>
+        </form>
+
+        <div modal-footer class="flex items-center justify-end gap-2 w-full">
+          <app-app-dev-btn variant="ghost" size="sm" (click)="closeVariantModal()">
+            Cancel
+          </app-app-dev-btn>
+          <app-app-dev-btn
+            variant="primary"
+            size="sm"
+            [disabled]="variantForm.invalid"
+            (click)="submitVariant()"
+          >
+            {{ submitButtonLabel() }}
+          </app-app-dev-btn>
+        </div>
+      </app-dev-app-modal>
+
+      <app-dev-app-confirm-dialog
+        [isOpen]="isDeleteConfirmOpen()"
+        title="Delete variant?"
+        message="Are you sure you want to delete this variant record? This action cannot be undone."
+        variant="danger"
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        (confirm)="confirmDeleteVariant()"
+        (cancel)="cancelDeleteVariant()"
+      ></app-dev-app-confirm-dialog>
     </app-dashboard>
   `,
 })
 export class ProductDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
+  private readonly formBuilder = inject(FormBuilder);
   private routeSub?: Subscription;
   private readonly realtimeService = inject(RealtimeService)
+  private readonly productVariantService = inject(ProductVariantService)
 
   private readonly realtimeProductVariants = this.realtimeService.product_variants
   private readonly realtimeProduct = this.realtimeService.products
 
   readonly productId = signal<string | null>(null);
+  readonly isVariantModalOpen = signal(false);
+  readonly isDeleteConfirmOpen = signal(false);
+  readonly editingVariantId = signal<string | null>(null);
+  readonly pendingDeleteVariantId = signal<string | null>(null);
+  readonly removedVariantIds = signal<string[]>([]);
+  readonly addedVariants = signal<ProductVariantPayload[]>([]);
+  readonly colorOptions: DevAppSelectOption[] = [
+    { value: 'Black', label: 'Black' },
+    { value: 'White', label: 'White' },
+    { value: 'Navy', label: 'Navy' },
+    { value: 'Red', label: 'Red' },
+    { value: 'Green', label: 'Green' },
+    { value: 'Blue', label: 'Blue' },
+    { value: 'Gray', label: 'Gray' },
+  ];
+
+  readonly variantForm = this.formBuilder.group({
+    sku: ['', Validators.required],
+    size: ['', Validators.required],
+    color: ['', Validators.required],
+    price: ['', [Validators.required, Validators.min(0)]],
+    lowStockThreshold: [0, [Validators.required, Validators.min(0)]],
+  });
   // readonly product = signal<DetailedProduct | null>(null);
 
   readonly variantMenuActions: DevAppMenuItem[] = [
-    { id: 'adjust_stock', label: 'Modify Stock Count', icon: 'fas fa-boxes' },
+    { id: 'adjust_stock', label: 'Update Variant', icon: 'fas fa-boxes' },
     { id: 'delete_sku', label: 'Purge SKU Entry', icon: 'fas fa-trash-alt', variant: 'danger' },
   ];
 
 
-  constructor() {
-    effect(() => {
-      console.log("THIS IS THE ARRAY", this.productDetail())
-    })
-  }
-
   ngOnInit(): void {
     this.getSubRouteOnAppInit()
   }
+
+  readonly modalTitle = computed(() =>
+    this.editingVariantId() ? 'Update Variant Coordinate' : 'Add Variant Coordinate',
+  );
+
+  readonly submitButtonLabel = computed(() =>
+    this.editingVariantId() ? 'Update Variant' : 'Save Variant',
+  );
 
   getSubRouteOnAppInit() {
     this.routeSub = this.route.paramMap.subscribe((params) => {
@@ -249,12 +347,21 @@ export class ProductDetail implements OnInit, OnDestroy {
   }
 
   productDetail = computed(() => {
-    console.log(this.productId())
-    return this.realtimeProductVariants().filter((p) => {
-      const { color, id, low_stock_threshold, price, products, product_id, size } = p
+    const currentProductId = this.productId();
+    const removedIds = new Set(this.removedVariantIds());
+    const realtimeVariants: ProductVariantPayload[] = this.realtimeProductVariants().map((variant) => ({
+      sku: variant.sku,
+      size: variant.size,
+      color: variant.color,
+      price: variant.price,
+      lowStockThreshold: variant.low_stock_threshold,
+      id: variant.id,
+      productId: variant.product_id,
+    }));
 
-      return p.product_id === this.productId()
-    })
+    return [...this.addedVariants(), ...realtimeVariants].filter((variant) => {
+      return variant.productId === currentProductId && !removedIds.has(variant.id);
+    });
   })
 
   choosenProduct = computed(() => {
@@ -263,44 +370,140 @@ export class ProductDetail implements OnInit, OnDestroy {
     })
   })
 
+  openVariantModal(variant?: ProductVariantPayload): void {
+    this.editingVariantId.set(variant?.id ?? null);
+
+    if (variant) {
+      this.variantForm.patchValue({
+        sku: variant.sku ?? '',
+        size: variant.size ?? '',
+        color: variant.color ?? '',
+        price: variant.price ?? '',
+        lowStockThreshold: variant.lowStockThreshold ?? 0,
+      });
+    } else {
+      this.variantForm.reset({
+        sku: '',
+        size: '',
+        color: '',
+        price: '',
+        lowStockThreshold: 0,
+      });
+    }
+
+    this.isVariantModalOpen.set(true);
+  }
+
+  closeVariantModal(): void {
+    this.isVariantModalOpen.set(false);
+    this.editingVariantId.set(null);
+    this.variantForm.reset({
+      sku: '',
+      size: '',
+      color: '',
+      price: '',
+      lowStockThreshold: 0,
+    });
+  }
+
+  submitVariant(): void {
+    if (this.variantForm.invalid) return;
+
+    const value = this.variantForm.getRawValue();
+    const currentProductId = this.productId();
+
+    if (!currentProductId) return;
+
+    const variantId = this.editingVariantId() ?? `local-${Date.now()}`;
+    const variantPayload: Partial<ProductVariantPayload> = {
+      sku: value.sku?.trim() ?? '',
+      size: value.size?.trim() ?? '',
+      color: value.color?.trim() ?? '',
+      price: String(value.price ?? ''),
+      lowStockThreshold: Number(value.lowStockThreshold ?? 0),
+      productId: currentProductId,
+    };
+
+    const syncVariantToState = (response: ProductVariantPayload) => {
+      const savedVariant: ProductVariantPayload = {
+        ...response,
+        id: response.id ?? variantId,
+        productId: response.productId ?? currentProductId,
+        price: response.price ?? String(value.price ?? ''),
+        lowStockThreshold: response.lowStockThreshold ?? Number(value.lowStockThreshold ?? 0),
+      };
+
+      this.addedVariants.update((existing) => {
+        const existingIndex = existing.findIndex((variant) => variant.id === savedVariant.id);
+        if (existingIndex >= 0) {
+          const next = [...existing];
+          next[existingIndex] = savedVariant;
+          return next;
+        }
+        return [...existing, savedVariant];
+      });
+
+      this.closeVariantModal();
+    };
+
+    if (this.editingVariantId()) {
+      this.productVariantService.updateProductVariant(this.editingVariantId()!, variantPayload).subscribe({
+        next: (response) => syncVariantToState(response),
+        error: (error) => console.error('Failed to update product variant', error),
+      });
+      return;
+    }
+
+    this.productVariantService.createProductVariant(variantPayload).subscribe({
+      next: (response) => syncVariantToState(response),
+      error: (error) => console.error('Failed to create product variant', error),
+    });
+  }
+
   ngOnDestroy(): void {
     this.routeSub?.unsubscribe();
   }
 
   onVariantAction(event: { itemId: string; context: any }) {
+    if (event.itemId === 'adjust_stock') {
+      this.openVariantModal(event.context as ProductVariantPayload);
+      return;
+    }
+
+    if (event.itemId === 'delete_sku') {
+      this.pendingDeleteVariantId.set(event.context?.id ?? null);
+      this.isDeleteConfirmOpen.set(true);
+      return;
+    }
+
     console.log(
       `Executed action context pipeline loop: ${event.itemId} targeting SKU: ${event.context.sku}`,
     );
   }
 
-  // private loadProductMockData(id: number): void {
-  //   setTimeout(() => {
-  //     this.product.set({
-  //       id,
-  //       name: id === 102 ? 'Slim Chino Trousers' : 'Classic Linen Shirt',
-  //       category: id === 102 ? 'Trousers' : 'Shirts',
-  //       basePrice: id === 102 ? 65.0 : 45.0,
-  //       supplier: id === 102 ? 'AfroFashion Manufacturing' : 'Textile Horizon SARL',
-  //       description:
-  //         'Premium lightweight structural apparel choice utilizing refined textile mesh optimizations.',
-  //       createdAt: '2026-05-12',
-  //       variants: [
-  //         {
-  //           sku: `SKU-${id}-S-BLK`,
-  //           size: 'S',
-  //           color: 'Midnight Jet Black',
-  //           stock: 12,
-  //           additionalPrice: 0.0,
-  //         },
-  //         {
-  //           sku: `SKU-${id}-M-BLK`,
-  //           size: 'M',
-  //           color: 'Midnight Jet Black',
-  //           stock: 8,
-  //           additionalPrice: 0.0,
-  //         },
-  //       ],
-  //     });
-  //   }, 250);
-  // }
+  confirmDeleteVariant(): void {
+    const variantId = this.pendingDeleteVariantId();
+    if (!variantId) {
+      this.isDeleteConfirmOpen.set(false);
+      return;
+    }
+
+    this.productVariantService.deleteProductVariant(variantId).subscribe({
+      next: () => {
+        this.removedVariantIds.update((existing) =>
+          existing.includes(variantId) ? existing : [...existing, variantId],
+        );
+        this.addedVariants.update((existing) => existing.filter((variant) => variant.id !== variantId));
+        this.pendingDeleteVariantId.set(null);
+        this.isDeleteConfirmOpen.set(false);
+      },
+      error: (error) => console.error('Failed to delete product variant', error),
+    });
+  }
+
+  cancelDeleteVariant(): void {
+    this.pendingDeleteVariantId.set(null);
+    this.isDeleteConfirmOpen.set(false);
+  }
+
 }

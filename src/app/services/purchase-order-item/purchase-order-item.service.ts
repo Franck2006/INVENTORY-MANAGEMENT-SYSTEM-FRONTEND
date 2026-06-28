@@ -14,7 +14,7 @@ export class PurchaseOrderItemService {
     }
 
     updatePurchaseOrderItem(purchase_order_item_data: any, id: string) {
-        return this.http.post(environment.LOCAL_BACKEND_URL + `/purchase-order-items/update-order-item/${id}`, purchase_order_item_data)
+        return this.http.patch(environment.LOCAL_BACKEND_URL + `/purchase-order-items/update-order-item/${id}`, purchase_order_item_data)
     }
 
     deletePurchaseOrderItem(id: any) {
