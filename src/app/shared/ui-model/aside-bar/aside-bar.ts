@@ -11,30 +11,17 @@ import { AppDevBtn } from '../../ui/app-dev-btn/app-dev-btn';
       class="flex flex-col side-bar-animation justify-between h-full w-[80%] md:w-full bg-slate-900/40 p-4"
     >
       <div class="space-y-7">
-        <div [routerLink]="['/']" class="flex items-center gap-3 px-2 py-1.5 cursor-pointer group">
+        <div [routerLink]="['/main-dashboard']" class="flex items-center gap-3 px-2 py-1.5 cursor-pointer group">
           <div
-            class="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 group-hover:scale-105 transition-transform"
+            class="flex text-white h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 group-hover:scale-105 transition-transform"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="2.5"
-              stroke="currentColor"
-              class="w-5 h-5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"
-              />
-            </svg>
+             <i class="fas fa-cubes text-indigo-400 text-xl text-white/55"></i>
           </div>
           <span
             class="capitalize"
             class="text-base font-bold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent"
           >
-            DevSpace
+            Supply Chain Fabric
           </span>
         </div>
 
@@ -281,4 +268,4 @@ import { AppDevBtn } from '../../ui/app-dev-btn/app-dev-btn';
     `,
   ],
 })
-export class AsideBar {}
+export class AsideBar { }

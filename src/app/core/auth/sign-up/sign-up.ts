@@ -31,7 +31,7 @@ import { Auth } from '../../services/auth';
             <div
               class="w-14 h-14 bg-indigo-500/20 border border-indigo-500/50 rounded-2xl flex items-center justify-center mb-8 shadow-[0_0_20px_rgba(99,102,241,0.4)] backdrop-blur-sm"
             >
-              <i class="fas fa-network-wired text-indigo-400 text-2xl"></i>
+               <i class="fas fa-cubes text-indigo-400 text-2xl"></i>
             </div>
             <h1
               class="text-4xl lg:text-5xl font-extrabold text-white tracking-tight leading-tight"
