@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { DevAppQuickStatRow } from '../../shared/ui/dev-app-quick-stat-row/dev-app-quick-stat-row';
 import { DevAppCard } from '../../shared/ui/dev-app-card/dev-app-card';
 import { DevAppBadge } from '../../shared/ui/dev-app-badge/dev-app-badge';
@@ -8,6 +8,7 @@ import { Dashboard } from '../../shared/ui-model/dashboard/dashboard';
 import { SalesOverviewChart, SalesDataPoint } from '../../features/charts/sales-chart';
 import { StockStatusChart, StockStatusData } from '../../features/charts/stock-status-chart';
 import { TopProductsList, TopProduct } from '../../features/charts/top-products-list';
+import { RealtimeService } from '../../core/realtime/reatime.service';
 
 interface LowStockItem {
   sku: string;
@@ -168,12 +169,18 @@ interface RecentActivity {
           <div class="lg:col-span-1 space-y-6">
             <app-top-products-list [data]="topProductsData()"></app-top-products-list>
           </div>
+
+          {{stockpiecesStat()}}
         </div>
       </div>
     </app-dashboard>
   `,
 })
 export class MainDashboard {
+  private readonly realtimeService = inject(RealtimeService)
+  private readonly realtimeProduct = this.realtimeService.products
+  private readonly realtimeProductsVariants = this.realtimeService.product_variants
+
   // Chart Data Mock Signals mapped to Prisma Schema (Order totals per day)
   readonly salesData = signal<SalesDataPoint[]>([
     { label: 'Mon', amount: 840.50 },
@@ -260,6 +267,8 @@ export class MainDashboard {
     },
   ]);
 
+
+
   // Derived metric mappings passed directly into dev-app-quick-stat-row primitives
   readonly kpiMetrics = computed(() => [
     {
@@ -271,26 +280,40 @@ export class MainDashboard {
     },
     {
       label: 'Units Currently Staged',
-      value: '1,297 pcs',
+      value: `${this.stockpiecesStat()} Pcs`,
       icon: 'fas fa-tshirt',
       trend: 'Across 2 open locations',
       isTrendPositive: true,
     },
     {
       label: 'Low Stock Risks',
-      value: this.lowStockAlerts().length.toString(),
+      value: `${this.stockProductStat()} Products`,
       icon: 'fas fa-exclamation-triangle',
       trend: 'Variants requiring replenishment POs',
       isTrendPositive: this.lowStockAlerts().length === 0,
     },
-    {
-      label: 'Products',
-      value: this.lowStockAlerts().length.toString(),
-      icon: 'fas fa-exclamation-triangle',
-      trend: 'Variants requiring replenishment POs',
-      isTrendPositive: this.lowStockAlerts().length === 0,
-    },
+    // {
+    //   label: 'Products',
+    //   value: this.lowStockAlerts().length.toString(),
+    //   icon: 'fas fa-exclamation-triangle',
+    //   trend: 'Variants requiring replenishment POs',
+    //   isTrendPositive: this.lowStockAlerts().length === 0,
+    // },
   ]);
+
+
+  // this is for the activity 
+  readonly stockpiecesStat = computed(() => {
+    return this.realtimeProductsVariants().reduce((sum, variant) => {
+      return sum + (variant.low_stock_threshold ?? 0);
+    }, 0);
+  })
+
+  readonly stockProductStat = computed(() => {
+    return this.realtimeProduct().length
+  })
+
+
 
   getActivityIconClass(type: 'sale' | 'restock' | 'damaged'): string {
     switch (type) {
