@@ -607,9 +607,12 @@ export class PurchaseOrders {
     });
   }
 
+  private getSupplierById(supplierId: string): GeneralModel.Supplier | undefined {
+    return this.realtimeSuppliers().find((s) => s.id === supplierId);
+  }
+
   private getSupplierName(supplierId: string): string {
-    const supplier = this.realtimeSuppliers().find((s) => s.id === supplierId);
-    return supplier?.company_name ?? '';
+    return this.getSupplierById(supplierId)?.company_name ?? '';
   }
 
   private formatPrismaDate(dateString: string | null | undefined): string | null {

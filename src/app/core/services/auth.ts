@@ -17,7 +17,7 @@ export class Auth {
   constructor(
     private http: HttpClient,
     private router: Router,
-  ) {}
+  ) { }
 
   private readonly user = signal<any | null>(null);
   private readonly refresh_token = signal<string | null>(null);
@@ -39,7 +39,7 @@ export class Auth {
   }
 
   signUp(signUpCreadetial: GeneralModel.SignUpCreadentials) {
-    this.http.post<string>(environment.LOCAL_BACKEND_URL + '/auth/sign-up', signUpCreadetial).pipe(
+    return this.http.post<string>(environment.LOCAL_BACKEND_URL + '/auth/sign-up', signUpCreadetial).pipe(
       tap((data: any) => {
         this.storeUser(data.user);
         this.storeAccessToken(data.access_token);

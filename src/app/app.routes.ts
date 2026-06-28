@@ -15,7 +15,7 @@ import { SignUp } from './core/auth/sign-up/sign-up';
 export const routes: Routes = [
   {
     path: '',
-    redirectTo: 'trying-page',
+    redirectTo: 'sign-in',
     pathMatch: 'full',
   },
   {

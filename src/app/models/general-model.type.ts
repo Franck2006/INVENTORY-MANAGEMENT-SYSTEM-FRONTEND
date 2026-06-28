@@ -4,15 +4,15 @@ export namespace GeneralModel {
   }
 
   interface Creadential {
-    email: string;
-    password: string;
+    email: string | null | undefined
+    password: string | null | undefined
   }
 
   export interface SignInCreadentials extends Creadential { }
 
   export interface SignUpCreadentials extends Creadential {
-    name: string;
-    lastname: string;
+    name: string | null | undefined
+    lastname: string | null | undefined
   }
 
   export interface Category {

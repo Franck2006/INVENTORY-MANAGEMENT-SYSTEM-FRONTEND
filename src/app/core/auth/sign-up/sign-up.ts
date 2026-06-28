@@ -5,11 +5,13 @@ import { Router, RouterLink } from '@angular/router';
 
 import { DevAppInput } from '../../../shared/ui/dev-app-input/dev-app-input';
 import { AppDevBtn } from '../../../shared/ui/app-dev-btn/app-dev-btn';
+import { DevAppToast, DevAppToastType, ToastModel } from '../../../shared/ui/dev-app-toast/dev-app-toast';
+import { Auth } from '../../services/auth';
 
 @Component({
   selector: 'app-sign-up',
   standalone: true,
-  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink, DevAppInput, AppDevBtn],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink, DevAppInput, AppDevBtn, DevAppToast],
   template: `
     <div class="min-h-screen w-full flex flex-col md:flex-row bg-[#0B132B]">
       <!-- Left Side: Illustration -->
@@ -18,7 +20,7 @@ import { AppDevBtn } from '../../../shared/ui/app-dev-btn/app-dev-btn';
       >
         <!-- Artificial background image rendering via assets directly -->
         <img
-          src="assets/images/sign_in_illustration.png"
+          src="https://i.pinimg.com/736x/79/ab/13/79ab1362c110f812bb95abd248645763.jpg"
           alt="Inventory Logic Nexus"
           class="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-screen scale-105"
         />
@@ -87,26 +89,32 @@ import { AppDevBtn } from '../../../shared/ui/app-dev-btn/app-dev-btn';
               ></app-dev-app-input>
             </div>
 
-            <app-dev-app-input
-              formControlName="email"
-              label="Corporate Email Address"
-              placeholder="operator@nexus.logistics.com"
-              type="email"
-            ></app-dev-app-input>
+            <div>
+              <app-dev-app-input
+                formControlName="email"
+                label="Corporate Email Address"
+                placeholder="operator@nexus.logistics.com"
+                type="email"
+              ></app-dev-app-input>
+            </div>
 
-            <app-dev-app-input
-              formControlName="password"
-              label="Secure Passphrase"
-              placeholder="••••••••"
-              type="password"
-            ></app-dev-app-input>
+            <div>
+              <app-dev-app-input
+                formControlName="password"
+                label="Secure Passphrase"
+                placeholder="••••••••"
+                type="password"
+              ></app-dev-app-input>
+            </div>
             
-            <app-dev-app-input
-              formControlName="confirmPassword"
-              label="Confirm Passphrase"
-              placeholder="••••••••"
-              type="password"
-            ></app-dev-app-input>
+            <div>
+              <app-dev-app-input
+                formControlName="confirmPassword"
+                label="Confirm Passphrase"
+                placeholder="••••••••"
+                type="password"
+              ></app-dev-app-input>
+            </div>
 
             <div class="pt-4 flex">
               <app-app-dev-btn
@@ -126,12 +134,25 @@ import { AppDevBtn } from '../../../shared/ui/app-dev-btn/app-dev-btn';
           <p class="text-center text-sm text-slate-400/80 mt-8 pt-8 border-t border-slate-700/50">
             Already authenticated?
             <a
-              routerLink="/auth/sign-in"
+              routerLink="/sign-in"
               class="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors cursor-pointer"
               >Return to Login</a
             >
           </p>
         </div>
+      </div>
+
+      <div class="fixed bottom-4 right-4 z-50 flex flex-col gap-3">
+        @for (toast of activeToasts(); track toast.id) {
+          <app-dev-app-toast
+            [id]="toast.id"
+            [type]="toast.type"
+            [title]="toast.title ?? null"
+            [message]="toast.message"
+            [duration]="toast.duration ?? 4000"
+            (close)="removeToast($event)"
+          ></app-dev-app-toast>
+        }
       </div>
     </div>
   `,
@@ -139,8 +160,10 @@ import { AppDevBtn } from '../../../shared/ui/app-dev-btn/app-dev-btn';
 export class SignUp {
   private readonly fb = inject(FormBuilder);
   private readonly router = inject(Router);
+  private readonly authService = inject(Auth);
 
   readonly isLoading = signal<boolean>(false);
+  readonly activeToasts = signal<ToastModel[]>([]);
 
   readonly signUpForm = this.fb.group({
     firstName: ['', Validators.required],
@@ -153,19 +176,55 @@ export class SignUp {
   onSubmit(): void {
     if (this.signUpForm.invalid) {
       this.signUpForm.markAllAsTouched();
+      this.triggerNotification('warning', 'Incomplete form', 'Please fill in all required fields.');
       return;
     }
 
-    if (this.signUpForm.get('password')?.value !== this.signUpForm.get('confirmPassword')?.value) {
-      alert('Passwords do not match');
+    const password = this.signUpForm.get('password')?.value;
+    const confirmPassword = this.signUpForm.get('confirmPassword')?.value;
+
+    if (password !== confirmPassword) {
+      this.triggerNotification('warning', 'Password Mismatch', 'Please make sure both passwords match.');
       return;
     }
+
+    const { firstName, lastName, email } = this.signUpForm.getRawValue();
+    const credentials = {
+      name: firstName ?? '',
+      lastname: lastName ?? '',
+      email: email ?? '',
+      password: password ?? '',
+    };
 
     this.isLoading.set(true);
 
-    setTimeout(() => {
-      this.isLoading.set(false);
-      this.router.navigate(['/auth/sign-in']);
-    }, 1200);
+    this.authService.signUp(credentials).subscribe({
+      next: () => {
+        this.isLoading.set(false);
+        this.triggerNotification('success', 'Account created', 'Your account was created successfully.');
+        setTimeout(() => this.router.navigate(['/main-dashboard']), 1400);
+      },
+      error: (err) => {
+        console.error('Sign-up failed:', err);
+        this.isLoading.set(false);
+        this.triggerNotification('error', 'Sign-up failed', 'We could not create your account. Please try again.');
+      },
+    });
+  }
+
+  triggerNotification(type: DevAppToastType, title: string, message: string): void {
+    const newToast: ToastModel = {
+      id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      type,
+      title,
+      message,
+      duration: 4000,
+    };
+
+    this.activeToasts.update((current) => [...current, newToast]);
+  }
+
+  removeToast(toastId: string): void {
+    this.activeToasts.update((current) => current.filter((toast) => toast.id !== toastId));
   }
 }

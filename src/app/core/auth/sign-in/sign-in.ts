@@ -19,7 +19,7 @@ import { Auth } from '../../services/auth';
       >
         <!-- Artificial background image rendering via assets directly -->
         <img
-          src="assets/images/sign_in_illustration.png"
+          src="https://i.pinimg.com/736x/90/6c/a8/906ca80e4d9097deec088ab48f171530.jpg"
           alt="Inventory Logic Nexus"
           class="absolute inset-0 w-full h-full object-cover opacity-50 mix-blend-screen scale-105"
         />
@@ -76,12 +76,14 @@ import { Auth } from '../../services/auth';
 
           <!-- Action Form built with ReactiveFormsModule -->
           <form [formGroup]="signInForm" (ngSubmit)="onSubmit()" class="space-y-6">
-            <app-dev-app-input
+           <div>
+             <app-dev-app-input
               formControlName="email"
               label="Registered Email Address"
               placeholder="operator@nexus.logistics.com"
               type="email"
             ></app-dev-app-input>
+           </div>
 
             <div class="space-y-2">
               <app-dev-app-input
@@ -118,7 +120,7 @@ import { Auth } from '../../services/auth';
           <p class="text-center text-sm text-slate-400/80 mt-8 pt-8 border-t border-slate-700/50">
             Lacking credentials?
             <a
-              routerLink="/auth/sign-up"
+              routerLink="/sign-up"
               class="text-indigo-400 font-semibold hover:text-indigo-300 transition-colors cursor-pointer"
               >Provision an account</a
             >
